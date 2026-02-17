@@ -657,3 +657,110 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// OBFUSCATOR PAGE
+// ═══════════════════════════════════════════════════════════════════════
+
+if (document.getElementById('obfuscator-page')) {
+    const inputTextarea = document.getElementById('obf-input');
+    const outputTextarea = document.getElementById('obf-output');
+    const obfuscateBtn = document.getElementById('obfuscate-btn');
+    const swapBtn = document.getElementById('obf-swap-btn');
+    const clearBtn = document.getElementById('obf-clear-btn');
+    const copyBtn = document.getElementById('obf-copy-btn');
+    
+    const inputLines = document.getElementById('input-lines');
+    const inputChars = document.getElementById('input-chars');
+    const outputLines = document.getElementById('output-lines');
+    const outputChars = document.getElementById('output-chars');
+    const statusEl = document.getElementById('obf-status');
+
+    function updateStats() {
+        const inputText = inputTextarea.value;
+        const outputText = outputTextarea.value;
+        
+        inputLines.textContent = `${inputText.split('\n').length} lines`;
+        inputChars.textContent = `${inputText.length} chars`;
+        outputLines.textContent = `${outputText.split('\n').length} lines`;
+        outputChars.textContent = `${outputText.length} chars`;
+    }
+
+    inputTextarea?.addEventListener('input', updateStats);
+    outputTextarea?.addEventListener('input', updateStats);
+
+    obfuscateBtn?.addEventListener('click', async () => {
+        const code = inputTextarea.value.trim();
+        if (!code) {
+            showNotification('Please enter some code first', 'error');
+            return;
+        }
+
+        obfuscateBtn.disabled = true;
+        const btnText = obfuscateBtn.querySelector('.obf-btn-text');
+        if (btnText) btnText.textContent = 'Obfuscating...';
+        statusEl.textContent = '';
+        statusEl.className = 'obf-status';
+
+        try {
+            const res = await fetch('/api/obfuscate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    password: sessionPassword || prompt('Enter admin password:'),
+                    code 
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.ok) {
+                outputTextarea.value = data.obfuscated;
+                updateStats();
+                statusEl.textContent = '✓ Success';
+                statusEl.className = 'obf-status success';
+                showNotification('Code obfuscated successfully!', 'success');
+            } else {
+                throw new Error(data.error || 'Obfuscation failed');
+            }
+        } catch (err) {
+            statusEl.textContent = '✗ Failed';
+            statusEl.className = 'obf-status error';
+            showNotification(err.message, 'error');
+        } finally {
+            obfuscateBtn.disabled = false;
+            if (btnText) btnText.textContent = 'Obfuscate';
+        }
+    });
+
+    swapBtn?.addEventListener('click', () => {
+        const temp = inputTextarea.value;
+        inputTextarea.value = outputTextarea.value;
+        outputTextarea.value = temp;
+        updateStats();
+        showNotification('Input/Output swapped', 'success');
+    });
+
+    clearBtn?.addEventListener('click', () => {
+        if (confirm('Clear all text?')) {
+            inputTextarea.value = '';
+            outputTextarea.value = '';
+            updateStats();
+            statusEl.textContent = '';
+            showNotification('Cleared', 'success');
+        }
+    });
+
+    copyBtn?.addEventListener('click', async () => {
+        if (!outputTextarea.value) {
+            showNotification('Nothing to copy', 'error');
+            return;
+        }
+        await navigator.clipboard.writeText(outputTextarea.value);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+        showNotification('Copied to clipboard!', 'success');
+    });
+
+    updateStats();
+}
