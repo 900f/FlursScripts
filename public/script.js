@@ -656,4 +656,4 @@ document.addEventListener('DOMContentLoaded', function() {
             if (targetLink) targetLink.click();
         }
     });
-
+});
