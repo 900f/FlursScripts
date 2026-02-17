@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
    
     setupSearch('script-search', '.script-card', true);
     setupSearch('config-search', '.config-card');
-    setupSearch('brainrot-search', '#brainrots-page .script-card', true);
+
    
     // Notification system
     function showNotification(message, type = 'success') {
@@ -632,12 +632,18 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification('Loadstring copied!', 'success');
     });
 
-    // Handle #admin route in URL (no more #raw — that's a real server path now)
+    // Handle #admin and #uploadscript routes in URL
     function handleSpecialRoutes() {
         const hash = window.location.hash.replace('#', '');
         if (hash === 'admin') {
             pages.forEach(page => page.classList.remove('active'));
             document.getElementById('admin-page')?.classList.add('active');
+            navLinks.forEach(l => l.classList.remove('active'));
+            return true;
+        }
+        if (hash === 'uploadscript') {
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById('uploadscript-page')?.classList.add('active');
             navLinks.forEach(l => l.classList.remove('active'));
             return true;
         }
@@ -648,6 +654,223 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!handleSpecialRoutes()) {
         handleInitialPage();
     }
+
+    // ─── UPLOAD SCRIPT PAGE ──────────────────────────────────────────────────
+
+    let uploadScriptPassword = null;
+
+    // Gate unlock
+    const uploadGateBtn = document.getElementById('upload-gate-btn');
+    const uploadGateInput = document.getElementById('upload-gate-password');
+    const uploadGateError = document.getElementById('upload-gate-error');
+    const uploadGate = document.getElementById('upload-gate');
+    const uploadPanel = document.getElementById('upload-panel');
+
+    async function unlockUploadScript() {
+        const pw = uploadGateInput?.value || '';
+        if (!pw) return;
+        if (uploadGateBtn) { uploadGateBtn.disabled = true; uploadGateBtn.textContent = '…'; }
+
+        // Validate password against server
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'auth', password: pw }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        if (uploadGateBtn) { uploadGateBtn.disabled = false; uploadGateBtn.textContent = 'Unlock'; }
+
+        if (res.error) {
+            if (uploadGateError) { uploadGateError.textContent = res.error === 'Unauthorized' ? 'Incorrect password.' : res.error; uploadGateError.style.display = 'block'; }
+            uploadGateInput.value = '';
+            return;
+        }
+
+        uploadScriptPassword = pw;
+        if (uploadGate) uploadGate.style.display = 'none';
+        if (uploadPanel) uploadPanel.style.display = 'block';
+    }
+
+    uploadGateBtn?.addEventListener('click', unlockUploadScript);
+    uploadGateInput?.addEventListener('keydown', e => e.key === 'Enter' && unlockUploadScript());
+
+    // Image preview
+    const usImage = document.getElementById('us-image');
+    const imagePreviewWrap = document.getElementById('image-preview-wrap');
+    const usImagePreview = document.getElementById('us-image-preview');
+    const usImageClear = document.getElementById('us-image-clear');
+    const uploadImageArea = document.getElementById('upload-image-area');
+
+    usImage?.addEventListener('change', () => {
+        const file = usImage.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            usImagePreview.src = e.target.result;
+            imagePreviewWrap.style.display = 'block';
+            uploadImageArea.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    });
+
+    usImageClear?.addEventListener('click', () => {
+        usImage.value = '';
+        usImagePreview.src = '';
+        imagePreviewWrap.style.display = 'none';
+        uploadImageArea.style.display = 'flex';
+    });
+
+    // Drag and drop on image area
+    uploadImageArea?.addEventListener('dragover', e => { e.preventDefault(); uploadImageArea.classList.add('drag-over'); });
+    uploadImageArea?.addEventListener('dragleave', () => uploadImageArea.classList.remove('drag-over'));
+    uploadImageArea?.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadImageArea.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            usImage.files = dt.files;
+            usImage.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // Submit
+    const usSubmitBtn = document.getElementById('us-submit-btn');
+    usSubmitBtn?.addEventListener('click', async () => {
+        const name        = document.getElementById('us-name')?.value.trim();
+        const description = document.getElementById('us-description')?.value.trim();
+        const loadstring  = document.getElementById('us-loadstring')?.value.trim();
+        const tagsRaw     = document.getElementById('us-tags')?.value.trim();
+        const imageFile   = usImage?.files[0];
+
+        if (!name)        return showNotification('Script name is required.', 'error');
+        if (!loadstring)  return showNotification('Loadstring is required.', 'error');
+        if (!imageFile)   return showNotification('Please choose an image.', 'error');
+
+        const titleEl = usSubmitBtn.querySelector('.btn-title');
+        usSubmitBtn.disabled = true;
+        if (titleEl) titleEl.textContent = 'Uploading…';
+
+        // Convert image to base64
+        const imageBase64 = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result.split(',')[1]);
+            reader.readAsDataURL(imageFile);
+        });
+
+        const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'publish',
+                password: uploadScriptPassword,
+                name, description, loadstring, tags,
+                imageBase64,
+                imageType: imageFile.type,
+            }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        usSubmitBtn.disabled = false;
+        if (titleEl) titleEl.textContent = 'Publish Script';
+
+        if (res.error) return showNotification('Failed: ' + res.error, 'error');
+
+        // Clear form
+        document.getElementById('us-name').value = '';
+        document.getElementById('us-description').value = '';
+        document.getElementById('us-loadstring').value = '';
+        document.getElementById('us-tags').value = '';
+        usImageClear?.click();
+
+        document.getElementById('us-result').style.display = 'block';
+        setTimeout(() => { document.getElementById('us-result').style.display = 'none'; }, 4000);
+        showNotification('Script published!', 'success');
+
+        // Reload dynamic scripts so it appears immediately if user goes to scripts page
+        loadDynamicScripts();
+    });
+
+    // ─── DYNAMIC SCRIPT LOADING ──────────────────────────────────────────────
+    // Fetches scripts uploaded via #uploadscript and appends them to the grid
+
+    async function loadDynamicScripts() {
+        const grid = document.querySelector('#scripts-page .scripts-grid');
+        if (!grid) return;
+
+        // Remove previously injected dynamic cards
+        grid.querySelectorAll('.dynamic-script-card').forEach(el => el.remove());
+
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'list' }),
+        }).then(r => r.json()).catch(() => null);
+
+        if (!res?.ok || !res.scripts?.length) return;
+
+        res.scripts.forEach(script => {
+            const tagsHtml = (script.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+            const card = document.createElement('div');
+            card.className = 'script-card dynamic-script-card';
+            card.setAttribute('data-name', script.name || '');
+            card.setAttribute('data-tags', (script.tags || []).join(' '));
+            card.innerHTML = `
+                <div class="script-image">
+                    <img src="${script.imageUrl}" alt="${script.name} Preview">
+                    <div class="script-overlay"><span class="script-status">Active</span></div>
+                </div>
+                <div class="script-content">
+                    <h3 class="script-name">${script.name}</h3>
+                    <p class="script-description">${script.description || ''}</p>
+                    <div class="script-code-container">
+                        <code class="script-code">${script.loadstring}</code>
+                        <button class="copy-btn">Copy</button>
+                    </div>
+                    <div class="script-tags">${tagsHtml}</div>
+                </div>
+            `;
+
+            // Wire up copy button
+            card.querySelector('.copy-btn')?.addEventListener('click', async function() {
+                const code = this.parentElement.querySelector('.script-code')?.textContent;
+                if (!code) return;
+                try {
+                    await navigator.clipboard.writeText(code);
+                    this.textContent = 'Copied';
+                    this.style.color = 'var(--green)';
+                    setTimeout(() => { this.textContent = 'Copy'; this.style.color = ''; }, 2000);
+                    showNotification('Copied to clipboard!', 'success');
+                } catch { showNotification('Failed to copy', 'error'); }
+            });
+
+            // Wire up image zoom
+            const img = card.querySelector('.script-image img');
+            if (img) {
+                img.style.cursor = 'zoom-in';
+                img.addEventListener('click', () => {
+                    document.getElementById('enlarged-image').src = img.src;
+                    document.getElementById('image-modal').classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                });
+            }
+
+            grid.appendChild(card);
+        });
+
+        // Re-run scroll observer on new cards
+        grid.querySelectorAll('.dynamic-script-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(40px)';
+            observer.observe(el);
+        });
+    }
+
+    // Load dynamic scripts on page ready
+    loadDynamicScripts();
+
 
     window.addEventListener('hashchange', () => {
         if (!handleSpecialRoutes()) {

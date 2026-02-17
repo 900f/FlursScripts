@@ -716,37 +716,8 @@ body {
     letter-spacing: 0.02em;
 }
 
-/* ── About / Docs / Config grids ──────────────────────────────────────── */
-.about-grid {
-    display: grid;
-    grid-template-columns: 1.2fr 0.8fr;
-    gap: 3rem;
-    align-items: start;
-    margin-bottom: 4rem;
-}
-.about-text, .visual-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 2.5rem;
-}
-.about-text h2 {
-    font-family: var(--font-head);
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--text);
-    margin-bottom: 1.25rem;
-    letter-spacing: -0.025em;
-}
-.about-text p { color: var(--muted); font-size: 0.97rem; line-height: 1.75; margin-bottom: 1.25rem; }
-.visual-card { text-align: center; }
-.visual-icon { font-size: 4rem; margin-bottom: 1.5rem; filter: grayscale(0.2); }
-.visual-card h3 { font-family: var(--font-head); font-size: 1.5rem; color: var(--text); margin-bottom: 0.75rem; }
-.visual-card p { color: var(--muted); font-size: 0.93rem; }
-.visual-stats { margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.visual-stat { background: var(--surface2); border: 1px solid var(--border); padding: 1rem; border-radius: 10px; }
-.visual-stat-num { font-family: var(--font-head); font-weight: 700; font-size: 1.6rem; color: var(--text); display: block; }
-.visual-stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+
 
 .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
 .doc-card {
@@ -948,7 +919,7 @@ body {
 @media (max-width: 1200px) {
     .hero-content { grid-template-columns: 1fr; text-align: center; gap: 3rem; }
     .hero-description { max-width: 100%; }
-    .about-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+
 }
 
 @media (max-width: 768px) {
@@ -974,7 +945,7 @@ body {
 @media (max-width: 480px) {
     .hero-title { font-size: 2.1rem; }
     .stats-grid { grid-template-columns: 1fr; }
-    .feature-card, .script-card, .config-card, .doc-card, .about-text, .visual-card { padding: 1.5rem; }
+    .feature-card, .script-card, .config-card, .doc-card { padding: 1.5rem; }
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
@@ -992,4 +963,27 @@ body {
 .expand-btn:focus, .search-bar input:focus {
     outline: 2px solid rgba(124,109,250,0.4);
     outline-offset: 2px;
+}
+
+/* ── Upload Image Area ────────────────────────────────────────────────── */
+.upload-image-area {
+    position: relative;
+    border: 2px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--surface2);
+}
+.upload-image-area:hover {
+    border-color: rgba(124,109,250,0.4);
+    background: rgba(124,109,250,0.05);
+}
+.upload-image-area.drag-over {
+    border-color: var(--accent);
+    background: rgba(124,109,250,0.1);
 }

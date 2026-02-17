@@ -279,19 +279,85 @@
                         </div>
                     </div>
 
-                    <div class="script-card" data-name="Nameless Hub" data-tags="Steal A brainrot">
-                        <div class="script-image"><img src="./images/Name.png" alt="Nameless Cheat Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
-                        <div class="script-content">
-                            <h3 class="script-name">Nameless Hub - Steal A Brainrot</h3>
-                            <p class="script-description">Steal a brainrot cheats for the most expensive steals.</p>
-                            <div class="script-code-container">
-                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/ily123950/Vulkan/refs/heads/main/Tr"))()</code>
-                                <button class="copy-btn">Copy</button>
-                            </div>
-                            <div class="script-tags"><span class="tag">Steal A Brainrot</span><span class="tag">SAB</span></div>
-                        </div>
-                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
+    <!-- UPLOAD SCRIPT PAGE (hidden from nav, access via #uploadscript) -->
+    <section id="uploadscript-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h2 class="page-title">Upload Script</h2>
+                <p class="page-subtitle">Add a new script to the public script library</p>
+            </div>
+
+            <!-- Password Gate -->
+            <div id="upload-gate" class="admin-gate">
+                <div class="admin-login-card">
+                    <h3>Admin Access</h3>
+                    <p>Enter the admin password to continue.</p>
+                    <div class="admin-input-row">
+                        <input type="password" id="upload-gate-password" placeholder="Password..." autocomplete="off">
+                        <button id="upload-gate-btn" class="option-btn">Unlock</button>
+                    </div>
+                    <div id="upload-gate-error" class="admin-error" style="display:none;">Incorrect password.</div>
+                </div>
+            </div>
+
+            <!-- Upload Panel -->
+            <div id="upload-panel" style="display:none; max-width: 680px; margin: 0 auto;">
+                <div class="admin-section">
+                    <h3 class="admin-section-title"><i class="fa-solid fa-plus" style="margin-right:0.5rem;color:var(--accent2)"></i>New Script Card</h3>
+                    <div class="admin-upload-form">
+
+                        <div class="admin-field">
+                            <label>Script Name</label>
+                            <input type="text" id="us-name" placeholder="e.g. Soluna Arsenal" class="admin-input">
+                        </div>
+
+                        <div class="admin-field">
+                            <label>Description</label>
+                            <input type="text" id="us-description" placeholder="Short description shown on the card" class="admin-input">
+                        </div>
+
+                        <div class="admin-field">
+                            <label>Loadstring <span class="admin-hint">(the full loadstring players copy)</span></label>
+                            <textarea id="us-loadstring" class="admin-textarea" style="min-height:90px;" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
+                        </div>
+
+                        <div class="admin-field">
+                            <label>Tags <span class="admin-hint">(comma separated, e.g. Arsenal, Aimbot, Universal)</span></label>
+                            <input type="text" id="us-tags" placeholder="Arsenal, Aimbot, Universal" class="admin-input">
+                        </div>
+
+                        <div class="admin-field">
+                            <label>Script Image <span class="admin-hint">(JPG or PNG, shown as the card thumbnail)</span></label>
+                            <div class="upload-image-area" id="upload-image-area">
+                                <i class="fa-solid fa-image" style="font-size:2rem;color:var(--muted);margin-bottom:0.75rem;"></i>
+                                <p style="color:var(--muted);font-size:0.9rem;margin:0;">Click to choose an image or drag &amp; drop</p>
+                                <input type="file" id="us-image" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+                            </div>
+                            <div id="image-preview-wrap" style="display:none;margin-top:0.75rem;position:relative;">
+                                <img id="us-image-preview" style="width:100%;border-radius:10px;border:1px solid var(--border);max-height:200px;object-fit:cover;" src="" alt="Preview">
+                                <button id="us-image-clear" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.7);border:none;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>
+                            </div>
+                        </div>
+
+                        <div class="admin-actions-row">
+                            <button id="us-submit-btn" class="download-btn" style="width:auto;padding:0.75rem 2rem;">
+                                <span class="btn-content">
+                                    <span class="btn-icon"><i class="fa-solid fa-upload"></i></span>
+                                    <span class="btn-text"><span class="btn-title">Publish Script</span></span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div id="us-result" class="upload-result" style="display:none;">
+                            <p style="color:var(--green);font-weight:600;margin:0;"><i class="fa-solid fa-check-circle" style="margin-right:0.4rem;"></i>Script published! It now appears on the Scripts page.</p>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         </div>
