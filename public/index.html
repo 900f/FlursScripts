@@ -22,7 +22,6 @@
                 <li><a href="#home" class="nav-link active" data-page="home">Home</a></li>
                 <li><a href="#about" class="nav-link" data-page="about">About</a></li>
                 <li><a href="#scripts" class="nav-link" data-page="scripts">Scripts</a></li>
-                <li><a href="#obfuscator" class="nav-link" data-page="obfuscator">Obfuscator</a></li>
                 <li><a href="#brainrots" class="nav-link" data-page="brainrots">Brainrots</a></li>
             </ul>
         </div>
@@ -348,68 +347,6 @@
                 <div class="scripts-grid">
 
                     </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- OBFUSCATOR PAGE -->
-    <section id="obfuscator-page" class="page">
-        <div class="obfuscator-container">
-            <div class="obfuscator-header">
-                <div class="obf-icon">⚡</div>
-                <h1 class="obf-title">Lua Obfuscator</h1>
-                <p class="obf-subtitle">Protect your scripts from prying eyes</p>
-            </div>
-
-            <div class="obfuscator-content">
-                <div class="obf-panel input-panel">
-                    <div class="panel-header">
-                        <span class="panel-icon">📝</span>
-                        <h3>Input Code</h3>
-                    </div>
-                    <textarea id="obf-input" class="obf-textarea" placeholder="-- Paste your Lua code here...
-local function example()
-    print('Hello World')
-end"></textarea>
-                    <div class="obf-stats">
-                        <span id="input-lines">0 lines</span>
-                        <span id="input-chars">0 chars</span>
-                    </div>
-                </div>
-
-                <div class="obf-controls">
-                    <button id="obfuscate-btn" class="obf-button">
-                        <span class="obf-btn-icon">🔒</span>
-                        <span class="obf-btn-text">Obfuscate</span>
-                    </button>
-                    <button id="obf-swap-btn" class="obf-button-secondary" title="Swap input/output">
-                        <span class="obf-btn-icon">⇄</span>
-                    </button>
-                    <button id="obf-clear-btn" class="obf-button-secondary" title="Clear all">
-                        <span class="obf-btn-icon">🗑️</span>
-                    </button>
-                </div>
-
-                <div class="obf-panel output-panel">
-                    <div class="panel-header">
-                        <span class="panel-icon">🔐</span>
-                        <h3>Obfuscated Output</h3>
-                        <button id="obf-copy-btn" class="panel-copy-btn">Copy</button>
-                    </div>
-                    <textarea id="obf-output" class="obf-textarea" readonly placeholder="Obfuscated code will appear here..."></textarea>
-                    <div class="obf-stats">
-                        <span id="output-lines">0 lines</span>
-                        <span id="output-chars">0 chars</span>
-                        <span id="obf-status" class="obf-status"></span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="obf-info">
-                <div class="obf-info-card">
-                    <h4>⚠️ Security Note</h4>
-                    <p>This obfuscator provides basic protection by minifying and obscuring your code. For maximum security, consider using professional tools like Luraph or PSU.</p>
                 </div>
             </div>
         </div>
