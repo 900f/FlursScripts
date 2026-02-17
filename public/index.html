@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flurs Script Hub</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="animated-bg">
+        <div class="floating-particles"></div>
+    </div>
+
+    <!-- CLEAN NAVBAR - NO DOUBLE TEXT -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#home" class="logo">
+                <span class="logo-icon"></span>
+                Flurs
+            </a>
+            <ul class="nav-links">
+                <li><a href="#home" class="nav-link active" data-page="home">Home</a></li>
+                <li><a href="#about" class="nav-link" data-page="about">About</a></li>
+                <li><a href="#scripts" class="nav-link" data-page="scripts">Scripts</a></li>
+                <li><a href="#brainrots" class="nav-link" data-page="brainrots">Brainrots</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div id="image-modal" class="image-modal">
+        <div class="modal-overlay"></div>
+        <img id="enlarged-image" class="enlarged-image" src="" alt="">
+    </div>
+
+    <!-- HOME PAGE -->
+    <section id="home-page" class="page active">
+        <div class="hero-section">
+            <div class="container">
+                <div class="hero-content">
+                    <div class="hero-text">
+                        <div class="hero-badge">
+                            <span class="status-dot"></span>
+                            Script Hub Active
+                        </div>
+                        <h1 class="hero-title">
+                            <span class="title-line">Flurs Cheating</span>
+                            <span class="title-line">Script Hub for</span>
+                            <span class="title-line gradient-text">Roblox by kahu</span>
+                        </h1>
+                        <p class="hero-description">
+                            Access Roblox cheating scripts to gain an advantage in games. Join our Discord community to share and discover scripts, and follow our TikTok and YouTube for tutorials and updates.
+                            <br><br>
+                            All scripts have been tested on Xeno Executor which you can download at xeno.onl
+                        </p>
+                    </div>
+                    <div class="download-section">
+                        <div class="preview-container">
+                            <img src="./images/Hub.png" alt="Script Preview" class="preview-image">
+                            <div class="preview-overlay">
+                                <div class="preview-stats">
+                                    <div class="stat"><span class="stat-value">Many</span><span class="stat-label">Users</span></div>
+                                    <div class="stat"><span class="stat-value">Daily</span><span class="stat-label">Script Shares</span></div>
+                                    <div class="stat"><span class="stat-value">5+</span><span class="stat-label">Scripts</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="download-controls">
+                            <button class="download-btn" id="download-btn">
+                                <span class="btn-content">
+                                    <span class="btn-icon"></span>
+                                    <span class="btn-text">
+                                        <span class="btn-title">Join Discord</span>
+                                        <span class="btn-subtitle">Free • Connect Now</span>
+                                    </span>
+                                </span>
+                                <span class="btn-progress"></span>
+                            </button>
+                            <div class="download-options">
+                                <button class="option-btn" id="tiktok-btn"><span class="option-icon">TikTok</span> Follow on TikTok</button>
+                                <button class="option-btn" id="youtube-btn"><span class="option-icon">YouTube</span> Subscribe on YouTube</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="features-section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Why Choose Flurs?</h2>
+                    <p class="section-subtitle">Discover the benefits of our Roblox cheating script community.</p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Script</span><h3>Script Library</h3></div>
+                        <p>Explore a wide range of Roblox cheating scripts, including aimbots, speed hacks, and more.</p>
+                        <div class="feature-metrics"><span class="metric">1000+ Scripts</span><span class="metric">User Tested</span></div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Handshake</span><h3>Active Community</h3></div>
+                        <p>Connect with other users to exchange cheating scripts and strategies for Roblox games.</p>
+                        <div class="feature-metrics"><span class="metric">Daily Shares</span><span class="metric">24/7 Support</span></div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Tutorial</span><h3>Tutorials</h3></div>
+                        <p>Learn how to use cheating scripts effectively with our detailed guides and video tutorials.</p>
+                        <div class="feature-metrics"><span class="metric">Video Tutorials</span><span class="metric">Script Guides</span></div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Star</span><h3>New Scripts</h3></div>
+                        <p>Stay updated with the latest cheating scripts through our social media channels and community.</p>
+                        <div class="feature-metrics"><span class="metric">Weekly Updates</span><span class="metric">Giveaways</span></div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Message</span><h3>User Feedback</h3></div>
+                        <p>Share your ideas to improve our script library and help shape the community.</p>
+                        <div class="feature-metrics"><span class="metric">Open Feedback</span><span class="metric">Community Driven</span></div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-header"><span class="feature-icon">Link</span><h3>Multi-Platform Access</h3></div>
+                        <p>Join us on Discord, TikTok, and YouTube for a seamless community experience.</p>
+                        <div class="feature-metrics"><span class="metric">Cross-Platform</span><span class="metric">Instant Access</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-item"><span class="stat-number" data-count="1000">0</span><span class="stat-label">Users</span></div>
+                    <div class="stat-item"><span class="stat-number" data-count="99">0</span><span class="stat-label">Uptime %</span></div>
+                    <div class="stat-item"><span class="stat-number" data-count="50">0</span><span class="stat-label">Daily Scripts</span></div>
+                    <div class="stat-item"><span class="stat-number" data-count="24">0</span><span class="stat-label">Support Hours</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ABOUT PAGE -->
+    <section id="about-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h2 class="page-title">About Flurs Script Hub</h2>
+                <p class="page-subtitle">A community for Roblox cheating scripts</p>
+            </div>
+            <div class="about-content">
+                <div class="about-grid">
+                    <div class="about-text">
+                        <h3>Our Purpose</h3>
+                        <p>Flurs Script Hub is dedicated to providing Roblox players with cheating scripts to enhance their gameplay experience. Our platform allows users to discover and share scripts for various games.</p>
+                        <h3>Why We Do It</h3>
+                        <p>We created Flurs to support players who want to gain an edge in Roblox through cheating scripts. Our goal is to offer a reliable source for scripts that help users dominate their favorite games.</p>
+                        <h3>Our Community</h3>
+                        <p>Join our Discord to connect with other players, share scripts, and get the latest updates. Our TikTok and YouTube channels provide tutorials and showcases to help you use scripts effectively.</p>
+                        <h3>Our Commitment</h3>
+                        <p>We are committed to maintaining an active and supportive community where users can access high-quality cheating scripts and contribute their own. Flurs is your go-to hub for Roblox cheating.</p>
+                    </div>
+                    <div class="about-visual">
+                        <div class="visual-card">
+                            <h4>Community Metrics</h4>
+                            <div class="metrics-chart">
+                                <div class="metric-bar"><span class="metric-label">Engagement</span><div class="bar"><div class="bar-fill" data-width="85%"></div></div><span class="metric-value">85%</span></div>
+                                <div class="metric-bar"><span class="metric-label">Activity</span><div class="bar"><div class="bar-fill" data-width="90%"></div></div><span class="metric-value">90%</span></div>
+                                <div class="metric-bar"><span class="metric-label">Growth</span><div class="bar"><div class="bar-fill" data-width="75%"></div></div><span class="metric-value">75%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SCRIPTS PAGE - ALL 11 ORIGINAL SCRIPTS -->
+    <section id="scripts-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h2 class="page-title">Script Library</h2>
+                <p class="page-subtitle">Cheating scripts for Roblox games</p>
+            </div>
+            <div class="scripts-container">
+                <div class="search-bar">
+                    <input type="text" id="script-search" placeholder="Search scripts by name or tags...">
+                </div>
+                <div class="scripts-grid">
+
+                    <div class="script-card" data-name="Soluna Arsenal" data-tags="Soluna Arsenal">
+                        <div class="script-image"><img src="./images/Sol.png" alt="Soluna Arsenal Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Soluna Arsenal</h3>
+                            <p class="script-description">Some real op bullshit, rapid fire, no reload - recommend using weed client for aimbot and ESP</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/endoverdosing/Soluna-API/refs/heads/main/arsenal.lua",true))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Soluna</span><span class="tag">Arsenal</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Infinite Yield" data-tags="Cmds Universal">
+                        <div class="script-image"><img src="./images/IY.png" alt="Infinite Yield Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Infinite Yield</h3>
+                            <p class="script-description">Admin commands for every game</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet(('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'),true))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Cmds</span><span class="tag">Universal</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Weed Client" data-tags="Arsenal Universal Rivals">
+                        <div class="script-image"><img src="./images/Weed.png" alt="Weed Client Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Weed Client</h3>
+                            <p class="script-description">Universal Aimbot + ESP.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/ex55/weed-client/refs/heads/main/main.lua"))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Arsenal</span><span class="tag">Universal</span><span class="tag">Rivals</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Argon Cheat - Blade Ball" data-tags="Blade Ball Argon">
+                        <div class="script-image"><img src="./images/Argon.png" alt="Argon Cheat Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Argon Cheat - Blade Ball</h3>
+                            <p class="script-description">Blade ball cheats for the best gameplay.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/SoyAdriYT/PitbullHubX/refs/heads/main/PitbullHubX.lua", true))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Blade Ball</span><span class="tag">Argon</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Plutonium Cheat" data-tags="Cheat Hub Blade Ball">
+                        <div class="script-image"><img src="./images/Plut.png" alt="Plutonium Cheat Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Plutonium Cheat</h3>
+                            <p class="script-description">Advanced cheat hub for a variety of games.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/PawsThePaw/Plutonium.AA/main/Plutonium.Loader.lua", true))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Cheat</span><span class="tag">Hub</span><span class="tag">Blade Ball</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Thunder Hub" data-tags="MM2 Murder Mystery">
+                        <div class="script-image"><img src="./images/Thunder.png" alt="Thunder Hub Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Thunder Hub</h3>
+                            <p class="script-description">Dominate people in Murder Mystery 2.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet('https://raw.githubusercontent.com/Roman34296589/SnapSanixHUB/refs/heads/main/SnapSanixHUB.lua'))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">MM2</span><span class="tag">Murder Mystery</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="TALENTLESS" data-tags="Piano TALENTLESS Auto Play">
+                        <div class="script-image"><img src="./images/Piano.png" alt="TALENTLESS Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">TALENTLESS</h3>
+                            <p class="script-description">Play roblox digital piano in any game automatically with 400 songs to choose from.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/hellohellohell012321/TALENTLESS/main/TALENTLESS", true))() end)</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Piano</span><span class="tag">TALENTLESS</span><span class="tag">Auto Play</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Fisch Eclipse" data-tags="Fisch Eclipse Auto Play">
+                        <div class="script-image"><img src="./images/Fisch.png" alt="Fish Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Fisch Eclipse</h3>
+                            <p class="script-description">Get the best things from the game fish and play automatically.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(Game:HttpGet("https://raw.githubusercontent.com/yolobradda/eclipsefisch/refs/heads/main/eclipsefisch"))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Fisch</span><span class="tag">Eclipse</span><span class="tag">Auto Play</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Strucid Cheats" data-tags="Strucid Hitboxes Cheats">
+                        <div class="script-image"><img src="./images/Weed.png" alt="Strucid Cheats Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Strucid Cheats</h3>
+                            <p class="script-description">Strucid Cheats.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/10x00/Public-Cracks/main/Apollo%20Hub%20Crack.lua"))();</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Strucid</span><span class="tag">Hitboxes</span><span class="tag">Cheats</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Soluna Rivals" data-tags="Rivals Aimbot Cheats">
+                        <div class="script-image"><img src="./images/Rivals.png" alt="Soluna Rivals Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Soluna Rivals</h3>
+                            <p class="script-description">Rivals Cheats.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://soluna-script.vercel.app/rivals-modern.lua"))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Rivals</span><span class="tag">Aimbot</span><span class="tag">Cheats</span></div>
+                        </div>
+                    </div>
+
+                    <div class="script-card" data-name="Nameless Hub" data-tags="Steal A brainrot">
+                        <div class="script-image"><img src="./images/Name.png" alt="Nameless Cheat Preview"><div class="script-overlay"><span class="script-status">Active</span></div></div>
+                        <div class="script-content">
+                            <h3 class="script-name">Nameless Hub - Steal A Brainrot</h3>
+                            <p class="script-description">Steal a brainrot cheats for the most expensive steals.</p>
+                            <div class="script-code-container">
+                                <code class="script-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/ily123950/Vulkan/refs/heads/main/Tr"))()</code>
+                                <button class="copy-btn">Copy</button>
+                            </div>
+                            <div class="script-tags"><span class="tag">Steal A Brainrot</span><span class="tag">SAB</span></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- BRAINROTS SHOP PAGE -->
+    <section id="brainrots-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h2 class="page-title">Brainrot Shop</h2>
+                <p class="page-subtitle">Exclusive limited-edition brainrots – buy before they're gone</p>
+            </div>
+            <div class="scripts-container">
+                <div class="search-bar">
+                    <input type="text" id="brainrot-search" placeholder="Search brainrots by name or tags...">
+                </div>
+                <div class="scripts-grid">
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ADMIN UPLOAD PAGE (hidden from nav, access via #admin) -->
+    <section id="admin-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h2 class="page-title">Script Host Admin</h2>
+                <p class="page-subtitle">Upload and manage privately hosted scripts</p>
+            </div>
+
+            <!-- Password Gate -->
+            <div id="admin-gate" class="admin-gate">
+                <div class="admin-login-card">
+                    <h3>Admin Access</h3>
+                    <p>Enter the admin password to continue.</p>
+                    <div class="admin-input-row">
+                        <input type="password" id="admin-password-input" placeholder="Password..." autocomplete="off">
+                        <button id="admin-login-btn" class="option-btn">Unlock</button>
+                    </div>
+                    <div id="admin-login-error" class="admin-error" style="display:none;">Incorrect password.</div>
+                </div>
+            </div>
+
+            <!-- Admin Panel (shown after login) -->
+            <div id="admin-panel" class="admin-panel" style="display:none;">
+
+                <!-- Upload Form -->
+                <div class="admin-section">
+                    <h3 class="admin-section-title">Upload New Script</h3>
+                    <div class="admin-upload-form">
+                        <div class="admin-field">
+                            <label>Script Label <span class="admin-hint">(only visible to you in the list below)</span></label>
+                            <input type="text" id="upload-label" placeholder="e.g. My Rivals Script v2" class="admin-input">
+                        </div>
+                        <div class="admin-field">
+                            <label>Script Content <span class="admin-hint">(Lua code)</span></label>
+                            <textarea id="upload-content" class="admin-textarea" placeholder="-- paste your Lua script here"></textarea>
+                        </div>
+                        <div class="admin-actions-row">
+                            <button id="upload-script-btn" class="download-btn" style="width:auto;padding:0.75rem 2rem;">
+                                <span class="btn-content"><span class="btn-text"><span class="btn-title">Generate & Save</span></span></span>
+                            </button>
+                        </div>
+                        <div id="upload-result" class="upload-result" style="display:none;">
+                            <p class="upload-result-label">Raw URL (use this in loadstring):</p>
+                            <div class="script-code-container">
+                                <code class="script-code" id="upload-result-url"></code>
+                                <button class="copy-btn" id="upload-copy-btn">Copy</button>
+                            </div>
+                            <p class="upload-result-label" style="margin-top:0.5rem;">Loadstring:</p>
+                            <div class="script-code-container">
+                                <code class="script-code" id="upload-result-loadstring"></code>
+                                <button class="copy-btn" id="upload-copy-ls-btn">Copy</button>
+                            </div>
+                            <p class="admin-hint" style="margin-top:0.5rem;">🔒 Browsers visiting this URL get a <strong>403 Forbidden</strong>. Only Roblox executors (detected by User-Agent) can fetch the Lua.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hosted Scripts List -->
+                <div class="admin-section">
+                    <h3 class="admin-section-title">Hosted Scripts</h3>
+                    <div id="hosted-scripts-list" class="hosted-scripts-list">
+                        <p class="admin-hint" id="no-scripts-msg">No scripts uploaded yet.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+    <script src="visitor-tracker.js"></script>
+</body>
+</html>
+
+
