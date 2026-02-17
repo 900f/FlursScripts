@@ -1,33 +1,11 @@
 // api/admin.js
-// Protected admin endpoint — AES-256 encryption
-// Actions: save, delete, get, list
 
 import { put, del, list } from '@vercel/blob';
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'flurs2025';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 function unauthorized(res) {
   return res.status(401).json({ error: 'Unauthorized' });
-}
-
-function encrypt(plaintext) {
-  const key    = Buffer.from(ENCRYPTION_KEY, 'hex');
-  const iv     = randomBytes(16);
-  const cipher = createCipheriv('aes-256-cbc', key, iv);
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-  encrypted    += cipher.final('hex');
-  return { iv: iv.toString('hex'), encrypted };
-}
-
-function decrypt(encryptedHex, ivHex) {
-  const key      = Buffer.from(ENCRYPTION_KEY, 'hex');
-  const iv       = Buffer.from(ivHex, 'hex');
-  const decipher = createDecipheriv('aes-256-cbc', key, iv);
-  let out        = decipher.update(encryptedHex, 'hex', 'utf8');
-  out           += decipher.final('utf8');
-  return out;
 }
 
 async function getMeta(hash) {
@@ -57,13 +35,12 @@ export default async function handler(req, res) {
 
   try {
 
-    // ── SAVE (encrypts before storing) ──────────────────────────────────
+    // ── SAVE ────────────────────────────────────────────────────────────
     if (action === 'save') {
       if (!hash || !content) return res.status(400).json({ error: 'Missing hash or content' });
 
-      const encData = encrypt(content);
-      await put(`scripts/${hash}.enc`, JSON.stringify(encData), {
-        access: 'public', contentType: 'application/json', addRandomSuffix: false,
+      await put(`scripts/${hash}.lua`, content, {
+        access: 'public', contentType: 'text/plain', addRandomSuffix: false,
       });
 
       const existing = await getMeta(hash);
@@ -84,25 +61,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ── GET (decrypt for admin editor) ──────────────────────────────────
+    // ── GET (for admin editor) ───────────────────────────────────────────
     if (action === 'get') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
 
-      const { blobs } = await list({ prefix: `scripts/${hash}.enc` });
-      const encBlob   = blobs.find(b => b.pathname === `scripts/${hash}.enc`);
-      if (!encBlob) return res.status(404).json({ error: 'Script not found' });
+      const { blobs } = await list({ prefix: `scripts/${hash}.lua` });
+      const luaBlob   = blobs.find(b => b.pathname === `scripts/${hash}.lua`);
+      if (!luaBlob) return res.status(404).json({ error: 'Script not found' });
 
-      const [encData, meta] = await Promise.all([
-        fetch(encBlob.url).then(r => r.json()),
+      const [content, meta] = await Promise.all([
+        fetch(luaBlob.url).then(r => r.text()),
         getMeta(hash),
       ]);
 
-      return res.status(200).json({
-        ok:      true,
-        hash,
-        label:   meta?.label || 'Unnamed',
-        content: decrypt(encData.encrypted, encData.iv),
-      });
+      return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
     }
 
     // ── LIST ────────────────────────────────────────────────────────────
