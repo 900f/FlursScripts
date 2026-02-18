@@ -1,4 +1,4 @@
-// api/loader.js
+// api/files/v2/loader.js
 
 const BLOB_BASE_URL      = 'https://anynovmwoyinocra.public.blob.vercel-storage.com';
 const BLOB_TOKEN         = process.env.BLOB_READ_WRITE_TOKEN;
@@ -27,16 +27,11 @@ function isRateLimited(req) {
 
 const BROWSER_UA = ['mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'wget', 'python', 'postman', 'curl', 'insomnia', 'httpie'];
 
-// Only allow if UA is empty OR contains roblox-related strings
 function isBrowser(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
-  // Explicitly allow Roblox
   if (ua.includes('roblox') || ua.includes('wininet')) return false;
-  // Block known tools and browsers
   if (BROWSER_UA.some(p => ua.includes(p))) return true;
-  // Block anything with a UA that isn't empty (unknown tools)
   if (ua.length > 0) return true;
-  // Empty UA = allow (Roblox HttpGet sends no UA)
   return false;
 }
 
@@ -48,7 +43,6 @@ export default async function handler(req, res) {
   if (isBrowser(req))       return res.status(403).end('-- Forbidden');
   if (isRateLimited(req))   return res.status(429).end('-- Slow down');
 
-  // Match hash from URL or query param
   const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
 
@@ -67,7 +61,7 @@ export default async function handler(req, res) {
     return res.status(200).end(content);
 
   } catch (err) {
-    console.error('Execute error:', err);
+    console.error('Loader error:', err);
     return res.status(500).end('-- Error');
   }
 }
