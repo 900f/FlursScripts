@@ -367,7 +367,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ─── SCRIPT HOST / ADMIN SYSTEM (Vercel KV backed) ──────────────────────
 
-    let sessionPassword = null; // held in memory only, never persisted
+    let sessionPassword = null;
+
+    // Load saved password and auto-unlock both gates if already saved
+    const savedPassword = localStorage.getItem('flurs_admin_pw');
+    if (savedPassword) sessionPassword = savedPassword;
 
     function generateHash() {
         const chars = '0123456789abcdef';
@@ -393,6 +397,22 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ ...payload, password: sessionPassword }),
         });
         return res.json();
+    }
+
+    // Auto-unlock admin gate if password already saved
+    async function tryAutoUnlockAdmin() {
+        if (!sessionPassword) return;
+        const data = await adminApi({ action: 'list' });
+        if (data.error === 'Unauthorized') {
+            localStorage.removeItem('flurs_admin_pw');
+            sessionPassword = null;
+            return;
+        }
+        const gate  = document.getElementById('admin-gate');
+        const panel = document.getElementById('admin-panel');
+        if (gate)  gate.style.display  = 'none';
+        if (panel) panel.style.display = 'block';
+        renderHostedScriptsList();
     }
 
     // ── Edit Modal ───────────────────────────────────────────────────────────
@@ -568,17 +588,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (data.error === 'Unauthorized') {
             sessionPassword = null;
+            localStorage.removeItem('flurs_admin_pw');
             if (adminLoginError) adminLoginError.style.display = 'block';
             if (adminPasswordInput) adminPasswordInput.value = '';
             if (adminLoginBtn) { adminLoginBtn.disabled = false; adminLoginBtn.textContent = 'Unlock'; }
             return;
         }
 
+        sessionPassword = pw;
+        localStorage.setItem('flurs_admin_pw', pw);
+
         if (adminGate) adminGate.style.display = 'none';
         if (adminPanel) adminPanel.style.display = 'block';
         if (adminLoginError) adminLoginError.style.display = 'none';
         if (adminLoginBtn) { adminLoginBtn.disabled = false; adminLoginBtn.textContent = 'Unlock'; }
         renderHostedScriptsList();
+    }
+
+    // Add logout button to admin panel
+    function addAdminLogoutBtn() {
+        const panel = document.getElementById('admin-panel');
+        if (!panel || document.getElementById('admin-logout-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'admin-logout-btn';
+        btn.className = 'option-btn';
+        btn.style.cssText = 'margin-bottom:1.5rem;color:#f87171;';
+        btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Log Out & Forget Password';
+        btn.addEventListener('click', () => {
+            localStorage.removeItem('flurs_admin_pw');
+            sessionPassword = null;
+            const gate = document.getElementById('admin-gate');
+            if (gate) gate.style.display = 'flex';
+            if (panel) panel.style.display = 'none';
+            btn.remove();
+        });
+        panel.prepend(btn);
     }
 
     if (adminLoginBtn) {
@@ -639,12 +683,14 @@ document.addEventListener('DOMContentLoaded', function() {
             pages.forEach(page => page.classList.remove('active'));
             document.getElementById('admin-page')?.classList.add('active');
             navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockAdmin().then(addAdminLogoutBtn);
             return true;
         }
         if (hash === 'uploadscript') {
             pages.forEach(page => page.classList.remove('active'));
             document.getElementById('uploadscript-page')?.classList.add('active');
             navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockUpload().then(addUploadLogoutBtn);
             return true;
         }
         return false;
@@ -658,6 +704,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // ─── UPLOAD SCRIPT PAGE ──────────────────────────────────────────────────
 
     let uploadScriptPassword = null;
+
+    // Reuse saved password for upload gate too
+    if (savedPassword) uploadScriptPassword = savedPassword;
+
+    async function tryAutoUnlockUpload() {
+        if (!uploadScriptPassword) return;
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'auth', password: uploadScriptPassword }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        if (res.error) {
+            uploadScriptPassword = null;
+            localStorage.removeItem('flurs_admin_pw');
+            return;
+        }
+        if (uploadGate)  uploadGate.style.display  = 'none';
+        if (uploadPanel) uploadPanel.style.display = 'block';
+        renderUploadedScriptsList();
+    }
 
     // Gate unlock
     const uploadGateBtn = document.getElementById('upload-gate-btn');
@@ -687,9 +754,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         uploadScriptPassword = pw;
+        localStorage.setItem('flurs_admin_pw', pw);
         if (uploadGate) uploadGate.style.display = 'none';
         if (uploadPanel) uploadPanel.style.display = 'block';
         renderUploadedScriptsList();
+        addUploadLogoutBtn();
+    }
+
+    function addUploadLogoutBtn() {
+        const panel = document.getElementById('upload-panel');
+        if (!panel || document.getElementById('upload-logout-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'upload-logout-btn';
+        btn.className = 'option-btn';
+        btn.style.cssText = 'margin-bottom:1.5rem;color:#f87171;';
+        btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Log Out & Forget Password';
+        btn.addEventListener('click', () => {
+            localStorage.removeItem('flurs_admin_pw');
+            uploadScriptPassword = null;
+            if (uploadGate)  uploadGate.style.display  = 'flex';
+            if (uploadPanel) uploadPanel.style.display = 'none';
+            btn.remove();
+        });
+        panel.prepend(btn);
     }
 
     uploadGateBtn?.addEventListener('click', unlockUploadScript);
