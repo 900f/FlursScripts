@@ -1646,3 +1646,6 @@ body {
     flex-shrink: 0;
 }
 .dash-pub-thumb.broken { display: none; }
+
+/* Permanently hide script.js injected logout button — we use our own */
+#admin-logout-btn { display: none !important; }
