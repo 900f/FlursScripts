@@ -382,13 +382,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
+    const API_BASE = 'https://api.flurs.xyz';
+
     function getScriptUrl(hash) {
-        return `${window.location.origin}/api/files/v2/loader/${hash}.lua`;
+        return `${API_BASE}/files/v2/loader/${hash}.lua`;
     }
 
     function getLoadstring(hash) {
-        return `loadstring(game:HttpGet("${window.location.origin}/api/files/v2/loader/${hash}.lua", true))()`;
+        return `loadstring(game:HttpGet("${API_BASE}/files/v2/loader/${hash}.lua", true))()`;
     }
+
 
     async function adminApi(payload) {
         const res = await fetch('/api/admin', {
