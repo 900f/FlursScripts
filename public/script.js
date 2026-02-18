@@ -677,30 +677,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Handle #admin and #uploadscript routes in URL
-    function handleSpecialRoutes() {
-        const hash = window.location.hash.replace('#', '');
-        if (hash === 'admin') {
-            pages.forEach(page => page.classList.remove('active'));
-            document.getElementById('admin-page')?.classList.add('active');
-            navLinks.forEach(l => l.classList.remove('active'));
-            tryAutoUnlockAdmin().then(addAdminLogoutBtn);
-            return true;
-        }
-        if (hash === 'uploadscript') {
-            pages.forEach(page => page.classList.remove('active'));
-            document.getElementById('uploadscript-page')?.classList.add('active');
-            navLinks.forEach(l => l.classList.remove('active'));
-            tryAutoUnlockUpload().then(addUploadLogoutBtn);
-            return true;
-        }
-        return false;
-    }
-
-    // Intercept initial load and hash changes
-    if (!handleSpecialRoutes()) {
-        handleInitialPage();
-    }
-
     // ─── UPLOAD SCRIPT PAGE ──────────────────────────────────────────────────
 
     let uploadScriptPassword = null;
@@ -1144,6 +1120,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load dynamic scripts on page ready
     loadDynamicScripts();
 
+    // ── handleSpecialRoutes — defined here so all functions above are available ──
+    function handleSpecialRoutes() {
+        const hash = window.location.hash.replace('#', '');
+        if (hash === 'admin') {
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById('admin-page')?.classList.add('active');
+            navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockAdmin().then(addAdminLogoutBtn);
+            return true;
+        }
+        if (hash === 'uploadscript') {
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById('uploadscript-page')?.classList.add('active');
+            navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockUpload().then(addUploadLogoutBtn);
+            return true;
+        }
+        return false;
+    }
+
+    // Initial route check
+    if (!handleSpecialRoutes()) {
+        handleInitialPage();
+    }
 
     window.addEventListener('hashchange', () => {
         if (!handleSpecialRoutes()) {
