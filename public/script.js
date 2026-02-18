@@ -383,11 +383,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getScriptUrl(hash) {
-        return `${window.location.origin}/api/loader/${hash}.lua`;
+        return `${window.location.origin}/api/files/v2/loader/${hash}.lua`;
     }
 
     function getLoadstring(hash) {
-        return `loadstring(game:HttpGet("${window.location.origin}/api/loader/${hash}.lua", true))()`;
+        return `loadstring(game:HttpGet("${window.location.origin}/api/files/v2/loader/${hash}.lua", true))()`;
     }
 
     async function adminApi(payload) {
