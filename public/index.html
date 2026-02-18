@@ -579,6 +579,92 @@
                     </div>
                 </div>
 
+                <!-- TAB: EDIT PUBLIC SCRIPT -->
+                <div class="dash-tab" id="tab-edit-public">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Edit Public Script</h1>
+                        <p class="dash-tab-subtitle">Update an existing script card on the public Scripts page</p>
+                    </div>
+                    <div class="dash-form-card">
+                        <input type="hidden" id="edit-pub-id">
+                        <div class="dash-form-grid">
+                            <div class="dash-form-group">
+                                <label class="dash-label">Script Name</label>
+                                <input type="text" id="edit-pub-name" placeholder="e.g. Soluna Arsenal" class="dash-input admin-input">
+                            </div>
+                            <div class="dash-form-group">
+                                <label class="dash-label">Tags <span class="dash-hint">comma separated</span></label>
+                                <input type="text" id="edit-pub-tags" placeholder="Arsenal, Aimbot, Universal" class="dash-input admin-input">
+                            </div>
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Description</label>
+                            <input type="text" id="edit-pub-description" placeholder="Short description shown on the card" class="dash-input admin-input">
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Loadstring <span class="dash-hint">full loadstring players copy</span></label>
+                            <textarea id="edit-pub-loadstring" class="dash-textarea admin-textarea" style="min-height:90px;" placeholder="loadstring(game:HttpGet(&quot;https://...&quot;))()"></textarea>
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Script Image <span class="dash-hint">leave blank to keep existing</span></label>
+                            <div id="edit-pub-current-img-wrap" style="margin-bottom:0.75rem;display:none;">
+                                <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.4rem;">Current image:</p>
+                                <img id="edit-pub-current-img" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid var(--border);" src="" alt="Current">
+                            </div>
+                            <div class="dash-upload-area upload-image-area" id="edit-upload-image-area">
+                                <i class="fa-solid fa-image"></i>
+                                <p>Click to choose or drag &amp; drop a new image</p>
+                                <input type="file" id="edit-pub-image" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+                            </div>
+                            <div id="edit-image-preview-wrap" style="display:none;margin-top:0.75rem;position:relative;">
+                                <img id="edit-pub-image-preview" style="width:100%;border-radius:10px;border:1px solid var(--border);max-height:200px;object-fit:cover;" src="" alt="New Preview">
+                                <button id="edit-pub-image-clear" class="dash-img-clear-btn">✕</button>
+                            </div>
+                        </div>
+                        <div class="dash-form-actions" style="gap:0.75rem;">
+                            <button id="edit-pub-save-btn" class="dash-primary-btn">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                            </button>
+                            <button id="edit-pub-cancel-btn" class="dash-primary-btn" style="background:var(--surface2);box-shadow:none;border:1px solid var(--border);">
+                                <i class="fa-solid fa-xmark"></i> Cancel
+                            </button>
+                        </div>
+                        <div id="edit-pub-result" class="dash-success-banner" style="display:none;">
+                            <i class="fa-solid fa-check-circle"></i> Script updated successfully!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: EDIT HOSTED SCRIPT -->
+                <div class="dash-tab" id="tab-edit-hosted">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Edit Hosted Script</h1>
+                        <p class="dash-tab-subtitle">Update the label and Lua content of a hosted script</p>
+                    </div>
+                    <div class="dash-form-card">
+                        <input type="hidden" id="edit-hosted-hash">
+                        <div class="dash-form-group">
+                            <label class="dash-label">Script Label <span class="dash-hint">only visible to you</span></label>
+                            <input type="text" id="edit-hosted-label" placeholder="e.g. My Rivals Script v2" class="dash-input admin-input">
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Lua Script Content</label>
+                            <textarea id="edit-hosted-content" class="dash-textarea admin-textarea" style="min-height:320px;font-family:'Courier New',monospace;" placeholder="-- loading script..."></textarea>
+                        </div>
+                        <div class="dash-form-actions" style="gap:0.75rem;">
+                            <button id="edit-hosted-save-btn" class="dash-primary-btn">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                            </button>
+                            <button id="edit-hosted-cancel-btn" class="dash-primary-btn" style="background:var(--surface2);box-shadow:none;border:1px solid var(--border);">
+                                <i class="fa-solid fa-xmark"></i> Cancel
+                            </button>
+                        </div>
+                        <div id="edit-hosted-result" class="dash-success-banner" style="display:none;">
+                            <i class="fa-solid fa-check-circle"></i> Hosted script updated!
+                        </div>
+                    </div>
+                </div>
+
             </main>
         </div>
 
@@ -643,7 +729,7 @@
             const tab = document.getElementById('tab-' + tabName);
             if (tab) tab.classList.add('active');
             document.querySelectorAll('[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
-            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host' };
+            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host', 'edit-public':'Edit Public Script', 'edit-hosted':'Edit Hosted Script' };
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
             if (tabName === 'overview')       refreshOverview();
@@ -768,29 +854,30 @@
         };
 
         window.dashEditPublic = async function(id) {
-            // Find the script in the rendered list
             const data = await apiUploadscript({ action: 'list' }).catch(() => ({}));
             const dynScripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
             const s = dynScripts.find(function(x) { return x.id === id; });
             if (!s) { alert('Script not found.'); return; }
-            // Pre-fill the Add Public Script form and switch to that tab
-            const nameEl = document.getElementById('us-name');
-            const tagsEl = document.getElementById('us-tags');
-            const descEl = document.getElementById('us-description');
-            const lsEl   = document.getElementById('us-loadstring');
-            if (nameEl) nameEl.value = s.name || '';
-            if (tagsEl) tagsEl.value = Array.isArray(s.tags) ? s.tags.join(', ') : '';
-            if (descEl) descEl.value = s.description || '';
-            if (lsEl)   lsEl.value   = s.loadstring || '';
-            // Store edit id so save button updates instead of creates
-            document.getElementById('us-name').dataset.editId = id;
-            // Mark form as editing
-            const submitBtn = document.getElementById('us-submit-btn');
-            if (submitBtn) {
-                submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
-                submitBtn.dataset.editId = id;
-            }
-            switchTab('add-public');
+
+            document.getElementById('edit-pub-id').value         = id;
+            document.getElementById('edit-pub-name').value       = s.name || '';
+            document.getElementById('edit-pub-tags').value       = Array.isArray(s.tags) ? s.tags.join(', ') : '';
+            document.getElementById('edit-pub-description').value = s.description || '';
+            document.getElementById('edit-pub-loadstring').value  = s.loadstring || '';
+
+            // Show current image
+            const curWrap = document.getElementById('edit-pub-current-img-wrap');
+            const curImg  = document.getElementById('edit-pub-current-img');
+            if (s.imageUrl) { curImg.src = s.imageUrl; curWrap.style.display = 'block'; }
+            else { curWrap.style.display = 'none'; }
+
+            // Reset new image picker
+            const imgInput = document.getElementById('edit-pub-image');
+            if (imgInput) imgInput.value = '';
+            document.getElementById('edit-image-preview-wrap').style.display = 'none';
+            document.getElementById('edit-pub-result').style.display = 'none';
+
+            switchTab('edit-public');
         };
 
         // ── Hosted Scripts tab ────────────────────────────────────────────
@@ -841,18 +928,18 @@
                 });
             });
             container.querySelectorAll('[data-hedit]').forEach(function(btn) {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', async function() {
                     var i = parseInt(btn.getAttribute('data-hedit'));
                     var s = _hostedCache[i];
                     if (!s) return;
-                    var newLabel = prompt('Edit script label:', s.label || '');
-                    if (newLabel === null) return;
-                    newLabel = newLabel.trim();
-                    if (!newLabel) { alert('Label cannot be empty.'); return; }
-                    apiAdmin({ action: 'rename', hash: s.hash, label: newLabel }).then(function(d) {
-                        if (d && d.ok) { renderHostedScripts(); }
-                        else { alert('Rename failed: ' + ((d && d.error) || 'unknown')); }
-                    }).catch(function() { alert('Rename failed.'); });
+                    // Load label + content then open edit tab
+                    document.getElementById('edit-hosted-hash').value  = s.hash;
+                    document.getElementById('edit-hosted-label').value = s.label || '';
+                    document.getElementById('edit-hosted-content').value = '-- loading…';
+                    document.getElementById('edit-hosted-result').style.display = 'none';
+                    switchTab('edit-hosted');
+                    const d = await apiAdmin({ action: 'get', hash: s.hash }).catch(() => ({}));
+                    document.getElementById('edit-hosted-content').value = d.ok ? (d.content || '') : '-- failed to load';
                 });
             });
         }
@@ -907,63 +994,118 @@
             });
         }
 
-        // ── Intercept publish form to support edit mode ───────────────────
-        function wirePublishForm() {
-            const submitBtn = document.getElementById('us-submit-btn');
-            if (!submitBtn || submitBtn._editWired) return;
-            submitBtn._editWired = true;
-            submitBtn.addEventListener('click', async function(e) {
-                const editId = submitBtn.dataset.editId;
-                if (!editId) return; // no edit mode — let script.js handle publish
-                e.stopImmediatePropagation();
-                e.preventDefault();
+        // ── Wire edit forms ───────────────────────────────────────────────
+        function wireEditForms() {
 
-                const name        = (document.getElementById('us-name')?.value || '').trim();
-                const tags        = (document.getElementById('us-tags')?.value || '').split(',').map(t => t.trim()).filter(Boolean);
-                const description = (document.getElementById('us-description')?.value || '').trim();
-                const loadstring  = (document.getElementById('us-loadstring')?.value || '').trim();
-                if (!name || !loadstring) { alert('Name and loadstring are required.'); return; }
+            // ── Edit Public Script form ───────────────────────────────────
+            const imgInput    = document.getElementById('edit-pub-image');
+            const previewWrap = document.getElementById('edit-image-preview-wrap');
+            const previewImg  = document.getElementById('edit-pub-image-preview');
+            const clearBtn    = document.getElementById('edit-pub-image-clear');
 
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
-
-                // Check for new image
-                const imgInput = document.getElementById('us-image');
-                let imageBase64 = null, imageType = null;
-                if (imgInput && imgInput.files && imgInput.files[0]) {
+            if (imgInput) {
+                imgInput.addEventListener('change', function() {
                     const file = imgInput.files[0];
-                    imageType  = file.type;
-                    imageBase64 = await new Promise(function(resolve) {
-                        const r = new FileReader();
-                        r.onload = function() { resolve(r.result.split(',')[1]); };
-                        r.readAsDataURL(file);
-                    });
-                }
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        previewWrap.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    imgInput.value = '';
+                    previewWrap.style.display = 'none';
+                    previewImg.src = '';
+                });
+            }
 
-                const payload = { action: 'update', password: getPw(), id: editId, name, description, loadstring, tags };
-                if (imageBase64) { payload.imageBase64 = imageBase64; payload.imageType = imageType; }
+            const savePublicBtn  = document.getElementById('edit-pub-save-btn');
+            const cancelPublicBtn = document.getElementById('edit-pub-cancel-btn');
 
-                const data = await apiUploadscript(payload).catch(() => ({}));
-                submitBtn.disabled = false;
+            if (cancelPublicBtn) {
+                cancelPublicBtn.addEventListener('click', function() { switchTab('public-scripts'); });
+            }
 
-                if (data.ok) {
-                    // Reset form back to publish mode
-                    delete submitBtn.dataset.editId;
-                    submitBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Publish Script';
-                    document.getElementById('us-name').value = '';
-                    document.getElementById('us-tags').value = '';
-                    document.getElementById('us-description').value = '';
-                    document.getElementById('us-loadstring').value = '';
-                    if (imgInput) imgInput.value = '';
-                    const resultEl = document.getElementById('us-result');
-                    if (resultEl) { resultEl.innerHTML = '<i class="fa-solid fa-check-circle"></i> Script updated!'; resultEl.style.display = 'flex'; setTimeout(() => { resultEl.style.display = 'none'; }, 3000); }
-                    renderPublicScripts();
-                    refreshOverview();
-                } else {
-                    alert('Update failed: ' + (data.error || 'unknown'));
-                    submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
-                }
-            }, true); // capture phase so we run before script.js
+            if (savePublicBtn) {
+                savePublicBtn.addEventListener('click', async function() {
+                    const id          = document.getElementById('edit-pub-id').value;
+                    const name        = document.getElementById('edit-pub-name').value.trim();
+                    const tags        = document.getElementById('edit-pub-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+                    const description = document.getElementById('edit-pub-description').value.trim();
+                    const loadstring  = document.getElementById('edit-pub-loadstring').value.trim();
+                    if (!name || !loadstring) { alert('Name and loadstring are required.'); return; }
+
+                    savePublicBtn.disabled = true;
+                    savePublicBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+                    let imageBase64 = null, imageType = null;
+                    if (imgInput && imgInput.files && imgInput.files[0]) {
+                        const file = imgInput.files[0];
+                        imageType = file.type;
+                        imageBase64 = await new Promise(function(resolve) {
+                            const r = new FileReader();
+                            r.onload = function() { resolve(r.result.split(',')[1]); };
+                            r.readAsDataURL(file);
+                        });
+                    }
+
+                    const payload = { action: 'update', password: getPw(), id, name, description, loadstring, tags };
+                    if (imageBase64) { payload.imageBase64 = imageBase64; payload.imageType = imageType; }
+
+                    const data = await apiUploadscript(payload).catch(() => ({}));
+                    savePublicBtn.disabled = false;
+                    savePublicBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+
+                    if (data.ok) {
+                        const resultEl = document.getElementById('edit-pub-result');
+                        resultEl.style.display = 'flex';
+                        setTimeout(function() { resultEl.style.display = 'none'; switchTab('public-scripts'); }, 1800);
+                        renderPublicScripts();
+                        refreshOverview();
+                    } else {
+                        alert('Update failed: ' + (data.error || 'unknown'));
+                    }
+                });
+            }
+
+            // ── Edit Hosted Script form ───────────────────────────────────
+            const saveHostedBtn   = document.getElementById('edit-hosted-save-btn');
+            const cancelHostedBtn = document.getElementById('edit-hosted-cancel-btn');
+
+            if (cancelHostedBtn) {
+                cancelHostedBtn.addEventListener('click', function() { switchTab('host-scripts'); });
+            }
+
+            if (saveHostedBtn) {
+                saveHostedBtn.addEventListener('click', async function() {
+                    const hash    = document.getElementById('edit-hosted-hash').value;
+                    const label   = document.getElementById('edit-hosted-label').value.trim();
+                    const content = document.getElementById('edit-hosted-content').value;
+                    if (!hash)    { alert('No script selected.'); return; }
+                    if (!label)   { alert('Label cannot be empty.'); return; }
+                    if (!content) { alert('Content cannot be empty.'); return; }
+
+                    saveHostedBtn.disabled = true;
+                    saveHostedBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+                    const data = await apiAdmin({ action: 'save', hash, label, content }).catch(() => ({}));
+                    saveHostedBtn.disabled = false;
+                    saveHostedBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+
+                    if (data.ok) {
+                        const resultEl = document.getElementById('edit-hosted-result');
+                        resultEl.style.display = 'flex';
+                        setTimeout(function() { resultEl.style.display = 'none'; switchTab('host-scripts'); }, 1800);
+                        renderHostedScripts();
+                    } else {
+                        alert('Save failed: ' + (data.error || 'unknown'));
+                    }
+                });
+            }
         }
 
         // ── Called once script.js unlocks the panel ───────────────────────
@@ -980,7 +1122,7 @@
             if (oldLogout) oldLogout.remove();
 
             wireNavItems();
-            wirePublishForm();
+            wireEditForms();
             refreshOverview();
         }
 
