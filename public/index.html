@@ -623,39 +623,22 @@
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
             if (tabName === 'overview')       refreshOverview();
-            if (tabName === 'public-scripts') renderPublicList();
+            if (tabName === 'public-scripts') {
+                // script.js owns this - call its function to fetch from API
+                if (typeof renderUploadedScriptsList === 'function') renderUploadedScriptsList();
+            }
             if (tabName === 'host-scripts')   renderHostedList();
         }
 
         // ── Overview ──────────────────────────────────────────────────────
         function refreshOverview() {
-            const pub    = getPublicScripts();
             const hosted = getHostedScripts();
-            const pubTotal    = HARDCODED_COUNT + pub.length;
             const hostedTotal = hosted.length;
 
-            animateCount('ov-public-count',  pubTotal);
-            animateCount('ov-hosted-count',  hostedTotal);
-            animateCount('ov-total-count',   pubTotal + hostedTotal);
-
-            const pBadge = document.getElementById('public-count-badge');
+            // Hosted side (localStorage-backed)
+            animateCount('ov-hosted-count', hostedTotal);
             const hBadge = document.getElementById('hosted-count-badge');
-            if (pBadge) pBadge.textContent = pubTotal;
             if (hBadge) hBadge.textContent = hostedTotal;
-
-            const allPublic = [
-                ...HARDCODED_SCRIPTS,
-                ...pub.map(s => ({ name: s.name || 'Unnamed', tags: (s.tags||[]) }))
-            ];
-            const pList = document.getElementById('ov-public-list');
-            if (pList) {
-                pList.innerHTML = allPublic.slice(-5).reverse().map(s =>
-                    '<div class="dash-recent-item"><div class="dash-recent-dot"></div>' +
-                    '<span class="dash-recent-name">' + escHtml(s.name) + '</span>' +
-                    '<span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">' + escHtml((s.tags&&s.tags[0])||'Public') + '</span></div>'
-                ).join('');
-            }
-
             const hList = document.getElementById('ov-hosted-list');
             if (hList) {
                 if (hosted.length === 0) { hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>'; }
@@ -667,6 +650,37 @@
                     ).join('');
                 }
             }
+
+            // Public side — fetch from API (same endpoint script.js uses)
+            fetch('/api/uploadscript', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'list' }),
+            }).then(r => r.json()).then(data => {
+                const dynScripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
+                const pubTotal = HARDCODED_COUNT + dynScripts.length;
+
+                animateCount('ov-public-count', pubTotal);
+                animateCount('ov-total-count',  pubTotal + hostedTotal);
+                const pBadge = document.getElementById('public-count-badge');
+                if (pBadge) pBadge.textContent = pubTotal;
+
+                const allPublic = [
+                    ...HARDCODED_SCRIPTS,
+                    ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: s.tags || [] }))
+                ];
+                const pList = document.getElementById('ov-public-list');
+                if (pList) {
+                    pList.innerHTML = allPublic.slice(-5).reverse().map(s =>
+                        '<div class="dash-recent-item"><div class="dash-recent-dot"></div>' +
+                        '<span class="dash-recent-name">' + escHtml(s.name) + '</span>' +
+                        '<span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">' + escHtml((s.tags && s.tags[0]) || 'Public') + '</span></div>'
+                    ).join('');
+                }
+            }).catch(() => {
+                animateCount('ov-public-count', HARDCODED_COUNT);
+                animateCount('ov-total-count',  HARDCODED_COUNT + hostedTotal);
+            });
         }
 
         function animateCount(id, target) {
@@ -807,6 +821,8 @@
 
             wireNavItems();
             refreshOverview();
+            // Fetch dynamic scripts from API so public-scripts tab is ready
+            if (typeof renderUploadedScriptsList === 'function') renderUploadedScriptsList();
         }
 
         // ── Our logout button ─────────────────────────────────────────────
