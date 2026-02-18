@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     const { action, password, name, description, loadstring, tags, imageBase64, imageType } = req.body || {};
 
     // ── AUTH check — required for auth, publish, delete ──────────────────
-    const needsAuth = ['auth', 'publish', 'delete'].includes(action);
+    const needsAuth = ['auth', 'publish', 'delete', 'getone', 'update'].includes(action);
     if (needsAuth) {
         if (!password || password !== ADMIN_PASSWORD) {
             recordFailure(ip);
@@ -103,6 +103,61 @@ export default async function handler(req, res) {
             if (!id) return res.status(400).json({ error: 'Missing id' });
             const { blobs } = await list({ prefix: `scriptcards/${id}` });
             await Promise.all(blobs.map(b => del(b.url)));
+            return res.status(200).json({ ok: true });
+        }
+
+        // ── GETONE (for edit modal) ────────────────────────────────────────
+        if (action === 'getone') {
+            const { id } = req.body || {};
+            if (!id) return res.status(400).json({ error: 'Missing id' });
+            const { blobs } = await list({ prefix: `scriptcards/${id}.meta.json` });
+            const metaBlob  = blobs.find(b => b.pathname === `scriptcards/${id}.meta.json`);
+            if (!metaBlob) return res.status(404).json({ error: 'Script not found' });
+            const script = await fetch(metaBlob.url).then(r => r.json());
+            return res.status(200).json({ ok: true, script });
+        }
+
+        // ── UPDATE (edit existing script card) ────────────────────────────
+        if (action === 'update') {
+            const { id, name, description, loadstring, tags, imageBase64, imageType } = req.body || {};
+            if (!id || !name || !loadstring) return res.status(400).json({ error: 'Missing required fields' });
+
+            // Fetch existing meta so we keep imageUrl if no new image
+            const { blobs: existingBlobs } = await list({ prefix: `scriptcards/${id}.meta.json` });
+            const existingMetaBlob = existingBlobs.find(b => b.pathname === `scriptcards/${id}.meta.json`);
+            const existing = existingMetaBlob ? await fetch(existingMetaBlob.url).then(r => r.json()) : {};
+
+            let imageUrl = existing.imageUrl;
+
+            // If new image provided, replace it
+            if (imageBase64) {
+                const ext = imageType === 'image/png' ? 'png' : 'jpg';
+                // Delete old image files for this id (any extension)
+                const { blobs: imgBlobs } = await list({ prefix: `scriptcards/${id}` });
+                const oldImgBlobs = imgBlobs.filter(b => !b.pathname.endsWith('.meta.json'));
+                await Promise.all(oldImgBlobs.map(b => del(b.url)));
+
+                const imageBuffer = Buffer.from(imageBase64, 'base64');
+                const imageBlob   = await put(`scriptcards/${id}.${ext}`, imageBuffer, {
+                    access: 'public', contentType: imageType || 'image/jpeg', addRandomSuffix: false,
+                });
+                imageUrl = imageBlob.url;
+            }
+
+            const meta = {
+                id,
+                name,
+                description: description || '',
+                loadstring,
+                tags: tags || [],
+                imageUrl,
+                createdAt: existing.createdAt || Date.now(),
+            };
+
+            await put(`scriptcards/${id}.meta.json`, JSON.stringify(meta), {
+                access: 'public', contentType: 'application/json', addRandomSuffix: false,
+            });
+
             return res.status(200).json({ ok: true });
         }
 
