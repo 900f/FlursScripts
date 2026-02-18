@@ -1,12 +1,13 @@
 // api/files/v3/loader.js
 // Serves a Lua loader file per script hash.
 // The Lua file itself reads script_key from the executor environment,
-// calls your /api/keys validate endpoint, and executes the protected script.
+// calls your /api/keys validate endpoint via GET (query params), 
+// and executes the protected script.
 //
-// URL: https://api.flurs.xyz/files/v3/loaders/HASH.lua
+// URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
 // User runs:
 //   script_key="FLURS-XXXX-XXXX-XXXX-XXXX"
-//   loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loaders/HASH.lua"))()
+//   loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()
 
 const RATE_LIMIT_WINDOW = 15 * 1000;
 const RATE_LIMIT_MAX    = 20;
@@ -56,7 +57,7 @@ export default async function handler(req, res) {
 
     const API = 'https://api.flurs.xyz/api/keys';
 
-    const lua = `-- Flurs Loader | https://flurs.xyz
+    const lua = `-- Flurs Loader (GET version) | https://flurs.xyz
 local _hash = "${hash}"
 local _api  = "${API}"
 
@@ -73,19 +74,19 @@ local ok_hwid, hwid = pcall(function()
 end)
 
 local hs   = game:GetService("HttpService")
-local body = hs:JSONEncode({
-    action     = "validate",
-    key        = key,
-    hwid       = ok_hwid and hwid or "unknown",
-    scriptHash = _hash,
-})
+
+-- Build query string (safely encoded)
+local query = "action=validate" ..
+              "&key="       .. hs:UrlEncode(key) ..
+              "&hwid="      .. hs:UrlEncode(ok_hwid and hwid or "unknown") ..
+              "&scriptHash= " .. hs:UrlEncode(_hash)
 
 local ok, response = pcall(function()
-    return hs:PostAsync(_api, body, Enum.HttpContentType.ApplicationJson, false)
+    return hs:GetAsync(_api .. "?" .. query)
 end)
 
 if not ok then
-    error("[Flurs] Could not reach server. Enable HttpService or check connection.", 0)
+    error("[Flurs] Could not reach server (GET failed). Check connection or executor HTTP support.", 0)
 end
 
 local data
