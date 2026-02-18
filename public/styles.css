@@ -1148,9 +1148,13 @@ body {
     .dash-topbar-right { gap: 0.5rem; }
     .dash-exit-btn { font-size: 0.78rem; padding: 0.35rem 0.7rem; }
     .dash-topbar-time { font-size: 0.85rem; }
+    /* Key rows on mobile */
+    .key-row { flex-direction: column; align-items: flex-start; }
+    .key-row-actions { width: 100%; justify-content: flex-start; }
+    .key-row-value { font-size: 0.75rem; word-break: break-all; }
+    .key-result-value-row { flex-direction: column; align-items: flex-start; }
+    .key-code { font-size: 0.78rem; width: 100%; }
 }
-
-/* Dashboard sidebar mobile collapse */
 @media (max-width: 900px) {
     .dash-sidebar { width: 200px; }
     .dash-main { margin-left: 200px; }
@@ -1209,6 +1213,118 @@ body {
     .dash-brand-role { display: none; }
     .dash-brand-name { font-size: 0.85rem; }
 }
+
+/* ── Key System Styles ────────────────────────────────────────────────── */
+.dash-nav-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.75rem 0.5rem;
+}
+.dash-nav-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: rgba(200,200,220,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0 0.5rem 0.4rem;
+}
+.dash-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+    padding-right: 2.5rem;
+    cursor: pointer;
+}
+.dash-select option { background: var(--surface2); color: var(--text); }
+
+/* Key create form */
+.key-create-form { padding: 0.25rem 0 0.5rem; }
+.key-result-box {
+    margin-top: 1.25rem;
+    background: rgba(52,211,153,0.05);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+}
+.key-result-label { font-size: 0.75rem; color: var(--muted); font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.key-result-value-row { display: flex; align-items: center; gap: 0.75rem; }
+.key-code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.88rem;
+    color: var(--green);
+    background: rgba(52,211,153,0.08);
+    padding: 0.5rem 0.875rem;
+    border-radius: 8px;
+    border: 1px solid rgba(52,211,153,0.15);
+    flex: 1;
+    word-break: break-all;
+}
+
+/* Key status badges */
+.key-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 50px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.key-badge.active      { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+.key-badge.revoked     { background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.25); }
+.key-badge.expired     { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+.key-badge.blacklisted { background: rgba(100,100,120,0.15); color: rgba(200,200,220,0.5); border: 1px solid rgba(255,255,255,0.08); }
+
+/* Key rows */
+.key-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1.125rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: all var(--transition);
+    margin-bottom: 0.5rem;
+}
+.key-row:hover { border-color: rgba(124,109,250,0.2); }
+.key-row-inactive { opacity: 0.55; }
+.key-row-main { flex: 1; min-width: 0; }
+.key-row-top {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-bottom: 0.35rem;
+    flex-wrap: wrap;
+}
+.key-row-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    color: var(--accent2);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+.key-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+.key-row-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.dash-icon-btn.active-danger { border-color: rgba(248,113,113,0.4); color: #f87171; background: rgba(248,113,113,0.08); }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }

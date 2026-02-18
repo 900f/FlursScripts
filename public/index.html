@@ -359,6 +359,22 @@
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                             <span>Upload &amp; Host</span>
                         </button>
+                        <div class="dash-nav-divider"></div>
+                        <div class="dash-nav-section-label">Key System</div>
+                        <button class="dash-nav-item" data-tab="key-scripts">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>Key Scripts</span>
+                            <span class="dash-nav-badge" id="keyscript-count-badge">0</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="keys">
+                            <i class="fa-solid fa-key"></i>
+                            <span>Keys</span>
+                            <span class="dash-nav-badge" id="keys-count-badge">0</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="add-key-script">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Upload Key Script</span>
+                        </button>
                     </nav>
                 </div>
                 <div class="dash-sidebar-bottom">
@@ -692,6 +708,129 @@
                     </div>
                 </div>
 
+                <!-- TAB: KEY SCRIPTS -->
+                <div class="dash-tab" id="tab-key-scripts">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Key Scripts</h1>
+                        <p class="dash-tab-subtitle">Protected Lua scripts — only users with a valid key can run them</p>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-shield-halved" style="color:#f59e0b;margin-right:0.5rem;"></i>All Key Scripts</h3>
+                            <button class="dash-card-action" data-tab="add-key-script"><i class="fa-solid fa-plus" style="margin-right:0.35rem;"></i>Upload New</button>
+                        </div>
+                        <div id="key-scripts-list" class="dash-scripts-list">
+                            <p class="dash-empty">Loading…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: KEYS MANAGER -->
+                <div class="dash-tab" id="tab-keys">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Keys</h1>
+                        <p class="dash-tab-subtitle">Create, manage and monitor access keys</p>
+                    </div>
+
+                    <!-- Create key inline form -->
+                    <div class="dash-card" style="margin-bottom:1.5rem;">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-plus" style="color:var(--green);margin-right:0.5rem;"></i>Generate New Key</h3>
+                        </div>
+                        <div class="key-create-form">
+                            <div class="dash-form-grid" style="margin-bottom:0;">
+                                <div class="dash-form-group" style="margin-bottom:0;">
+                                    <label class="dash-label">Note <span class="dash-hint">e.g. user's name</span></label>
+                                    <input type="text" id="key-note" placeholder="e.g. Discord user#1234" class="dash-input">
+                                </div>
+                                <div class="dash-form-group" style="margin-bottom:0;">
+                                    <label class="dash-label">Linked Script <span class="dash-hint">optional</span></label>
+                                    <select id="key-script-select" class="dash-input dash-select">
+                                        <option value="">— Any key script —</option>
+                                    </select>
+                                </div>
+                                <div class="dash-form-group" style="margin-bottom:0;">
+                                    <label class="dash-label">Expires <span class="dash-hint">leave blank = never</span></label>
+                                    <input type="datetime-local" id="key-expiry" class="dash-input">
+                                </div>
+                                <div class="dash-form-group" style="margin-bottom:0;">
+                                    <label class="dash-label">Max Uses <span class="dash-hint">leave blank = unlimited</span></label>
+                                    <input type="number" id="key-maxuses" placeholder="e.g. 1" min="1" class="dash-input">
+                                </div>
+                            </div>
+                            <div style="margin-top:1rem;">
+                                <button id="key-create-btn" class="dash-primary-btn">
+                                    <i class="fa-solid fa-key"></i> Generate Key
+                                </button>
+                            </div>
+                            <div id="key-create-result" class="key-result-box" style="display:none;">
+                                <div class="key-result-label">New Key</div>
+                                <div class="key-result-value-row">
+                                    <code id="key-create-value" class="key-code"></code>
+                                    <button class="copy-btn" id="key-copy-btn">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Keys list -->
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-list" style="color:var(--accent2);margin-right:0.5rem;"></i>All Keys</h3>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="text" id="key-search" placeholder="Search note or key…" class="dash-input" style="width:200px;padding:0.4rem 0.75rem;font-size:0.82rem;">
+                                <button class="dash-card-action" id="keys-refresh-btn"><i class="fa-solid fa-rotate-right"></i></button>
+                            </div>
+                        </div>
+                        <div id="keys-list" class="dash-scripts-list">
+                            <p class="dash-empty">Loading…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: UPLOAD KEY SCRIPT -->
+                <div class="dash-tab" id="tab-add-key-script">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Upload Key Script</h1>
+                        <p class="dash-tab-subtitle">Upload a protected Lua script — only accessible with a valid key</p>
+                    </div>
+                    <div class="dash-form-card">
+                        <input type="hidden" id="ks-edit-hash">
+                        <div class="dash-form-group">
+                            <label class="dash-label">Script Label <span class="dash-hint">only visible to you</span></label>
+                            <input type="text" id="ks-label" placeholder="e.g. Rivals Pro v3" class="dash-input admin-input">
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Lua Script Content</label>
+                            <textarea id="ks-content" class="dash-textarea admin-textarea" style="min-height:300px;font-family:'Courier New',monospace;" placeholder="-- paste your protected Lua here"></textarea>
+                        </div>
+                        <div class="dash-form-actions" style="gap:0.75rem;">
+                            <button id="ks-save-btn" class="dash-primary-btn">
+                                <i class="fa-solid fa-lock"></i> Save Key Script
+                            </button>
+                            <button id="ks-cancel-btn" class="dash-primary-btn" style="background:var(--surface2);box-shadow:none;border:1px solid var(--border);display:none;">
+                                <i class="fa-solid fa-xmark"></i> Cancel
+                            </button>
+                        </div>
+                        <div id="ks-result" style="display:none;">
+                            <div class="dash-success-banner" style="margin-bottom:1rem;">
+                                <i class="fa-solid fa-check-circle"></i> Key script saved!
+                            </div>
+                            <div class="dash-card" style="margin-top:0;">
+                                <div class="dash-card-header" style="padding-bottom:0.75rem;">
+                                    <h3 style="font-size:0.9rem;"><i class="fa-solid fa-code" style="color:var(--accent2);margin-right:0.4rem;"></i>Loader Snippet — paste this into your public loadstring</h3>
+                                </div>
+                                <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">Users run this. It asks for their key, sends it to your API, and executes the protected script only if the key is valid.</p>
+                                <div class="script-code-container">
+                                    <code class="script-code" id="ks-loader-snippet" style="white-space:pre;font-size:0.72rem;line-height:1.6;"></code>
+                                    <button class="copy-btn" id="ks-copy-snippet-btn" style="align-self:flex-start;margin-top:0.25rem;">Copy</button>
+                                </div>
+                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;"><i class="fa-solid fa-circle-info" style="color:var(--accent2);margin-right:0.3rem;"></i>The script hash is <code id="ks-result-hash" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;"></code> — use this when generating keys.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </main>
         </div>
 
@@ -756,12 +895,14 @@
             const tab = document.getElementById('tab-' + tabName);
             if (tab) tab.classList.add('active');
             document.querySelectorAll('[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
-            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host', 'edit-public':'Edit Public Script', 'edit-hosted':'Edit Hosted Script' };
+            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host', 'edit-public':'Edit Public Script', 'edit-hosted':'Edit Hosted Script', 'key-scripts':'Key Scripts', 'keys':'Keys', 'add-key-script':'Upload Key Script' };
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
-            if (tabName === 'overview')       refreshOverview();
-            if (tabName === 'public-scripts') renderPublicScripts();
-            if (tabName === 'host-scripts')   renderHostedScripts();
+            if (tabName === 'overview')        refreshOverview();
+            if (tabName === 'public-scripts')  renderPublicScripts();
+            if (tabName === 'host-scripts')    renderHostedScripts();
+            if (tabName === 'key-scripts')     renderKeyScripts();
+            if (tabName === 'keys')            renderKeys();
         }
 
         // ── Animate count ─────────────────────────────────────────────────
@@ -1021,6 +1162,340 @@
             });
         }
 
+        // ── Key System API helper ─────────────────────────────────────────
+        async function apiKeys(payload) {
+            const r = await fetch('/api/keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...payload, password: getPw() }),
+            });
+            return r.json();
+        }
+
+        function getLoaderSnippet(hash) {
+            return `local API = "https://flurs.xyz/api/keys"
+local scriptHash = "${hash}"
+
+-- Prompt user for key
+local key = game:GetService("Players").LocalPlayer:GetAttribute("FlursKey")
+if not key then
+    key = tostring(game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Flurs Loader", Text = "Enter your key in executor console", Duration = 5
+    }))
+    key = getgenv().FLURS_KEY or error("Set getgenv().FLURS_KEY = 'YOUR-KEY' before running")
+end
+
+local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+
+local ok, res = pcall(function()
+    return game:HttpGet(API .. "?action=validate", true, {
+        ["Content-Type"] = "application/json",
+        body = game:GetService("HttpService"):JSONEncode({
+            action = "validate", key = key, hwid = hwid, scriptHash = scriptHash
+        })
+    })
+end)
+
+if not ok then error("Loader: network error") end
+local data = game:GetService("HttpService"):JSONDecode(res)
+if not data.ok then error("Loader: " .. (data.error or "denied")) end
+loadstring(data.content)()`;
+        }
+
+        function statusBadge(key) {
+            const now = Date.now();
+            if (key.blacklisted) return '<span class="key-badge blacklisted">Blacklisted</span>';
+            if (key.revoked)     return '<span class="key-badge revoked">Revoked</span>';
+            if (key.expiresAt && now > key.expiresAt) return '<span class="key-badge expired">Expired</span>';
+            if (key.maxUses && key.useCount >= key.maxUses) return '<span class="key-badge expired">Max Uses</span>';
+            return '<span class="key-badge active">Active</span>';
+        }
+
+        function fmtDate(ts) {
+            if (!ts) return '—';
+            return new Date(ts).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        }
+
+        // ── Render Key Scripts tab ────────────────────────────────────────
+        async function renderKeyScripts() {
+            const container = document.getElementById('key-scripts-list');
+            if (!container) return;
+            container.innerHTML = '<p class="dash-empty">Loading…</p>';
+            const data = await apiKeys({ action: 'listscripts' }).catch(() => ({}));
+            const scripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
+
+            const badge = document.getElementById('keyscript-count-badge');
+            if (badge) badge.textContent = scripts.length;
+
+            if (!scripts.length) { container.innerHTML = '<p class="dash-empty">No key scripts yet. Upload one using the sidebar.</p>'; return; }
+
+            container.innerHTML = scripts.map(function(s) {
+                return '<div class="dash-script-row" id="ks-row-' + s.hash + '">' +
+                    '<div class="dash-script-row-left">' +
+                    '<div class="dash-script-row-icon" style="background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-shield-halved"></i></div>' +
+                    '<div class="dash-script-row-info">' +
+                    '<div class="dash-script-row-name">' + escHtml(s.label || 'Unnamed') + '</div>' +
+                    '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);">' + escHtml(s.hash) + '</div>' +
+                    '</div></div>' +
+                    '<div class="dash-script-row-actions">' +
+                    '<button class="dash-icon-btn" title="Copy hash" data-ks-copy="' + escHtml(s.hash) + '"><i class="fa-solid fa-copy"></i></button>' +
+                    '<button class="dash-icon-btn" title="Edit" data-ks-edit="' + escHtml(s.hash) + '" data-ks-label="' + escHtml(s.label||'') + '"><i class="fa-solid fa-pen"></i></button>' +
+                    '<button class="dash-icon-btn" title="View loader snippet" data-ks-snippet="' + escHtml(s.hash) + '"><i class="fa-solid fa-code"></i></button>' +
+                    '<button class="dash-icon-btn danger" title="Delete" data-ks-delete="' + escHtml(s.hash) + '"><i class="fa-solid fa-trash"></i></button>' +
+                    '</div></div>';
+            }).join('');
+
+            container.querySelectorAll('[data-ks-copy]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    navigator.clipboard.writeText(btn.getAttribute('data-ks-copy')).catch(()=>{});
+                    btn.style.color = 'var(--green)'; setTimeout(()=>{ btn.style.color=''; }, 1000);
+                });
+            });
+            container.querySelectorAll('[data-ks-edit]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    const hash = btn.getAttribute('data-ks-edit');
+                    document.getElementById('ks-edit-hash').value = hash;
+                    document.getElementById('ks-label').value = btn.getAttribute('data-ks-label') || '';
+                    document.getElementById('ks-content').value = '-- loading…';
+                    document.getElementById('ks-result').style.display = 'none';
+                    document.getElementById('ks-cancel-btn').style.display = 'inline-flex';
+                    document.getElementById('ks-save-btn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+                    switchTab('add-key-script');
+                    const d = await apiKeys({ action: 'getscript', hash }).catch(()=>({}));
+                    document.getElementById('ks-content').value = d.ok ? (d.content||'') : '-- failed to load';
+                });
+            });
+            container.querySelectorAll('[data-ks-snippet]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const hash = btn.getAttribute('data-ks-snippet');
+                    document.getElementById('ks-edit-hash').value = hash;
+                    document.getElementById('ks-result-hash').textContent = hash;
+                    document.getElementById('ks-loader-snippet').textContent = getLoaderSnippet(hash);
+                    document.getElementById('ks-result').style.display = 'block';
+                    switchTab('add-key-script');
+                });
+            });
+            container.querySelectorAll('[data-ks-delete]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    if (!confirm('Delete this key script? Any keys using it will stop working.')) return;
+                    const data = await apiKeys({ action: 'deletescript', hash: btn.getAttribute('data-ks-delete') }).catch(()=>({}));
+                    if (data.ok) renderKeyScripts();
+                    else alert('Delete failed: ' + (data.error||'unknown'));
+                });
+            });
+        }
+
+        // ── Render Keys tab ───────────────────────────────────────────────
+        let _allKeys = [];
+        async function renderKeys(searchVal) {
+            const container = document.getElementById('keys-list');
+            if (!container) return;
+            if (searchVal === undefined) {
+                container.innerHTML = '<p class="dash-empty">Loading…</p>';
+                const data = await apiKeys({ action: 'list' }).catch(() => ({}));
+                _allKeys = (data.ok && Array.isArray(data.keys)) ? data.keys : [];
+            }
+            const badge = document.getElementById('keys-count-badge');
+            if (badge) badge.textContent = _allKeys.length;
+
+            // Populate script select on keys tab too
+            const sel = document.getElementById('key-script-select');
+            if (sel && sel.options.length <= 1) {
+                const sd = await apiKeys({ action: 'listscripts' }).catch(()=>({}));
+                const ss = (sd.ok && Array.isArray(sd.scripts)) ? sd.scripts : [];
+                ss.forEach(function(s) {
+                    const o = document.createElement('option');
+                    o.value = s.hash; o.textContent = escHtml(s.label || s.hash.slice(0,8));
+                    sel.appendChild(o);
+                });
+            }
+
+            const q = (searchVal || document.getElementById('key-search')?.value || '').toLowerCase();
+            const filtered = q ? _allKeys.filter(k => (k.note||'').toLowerCase().includes(q) || k.key.toLowerCase().includes(q)) : _allKeys;
+
+            if (!filtered.length) { container.innerHTML = '<p class="dash-empty">' + (q ? 'No keys match your search.' : 'No keys yet.') + '</p>'; return; }
+
+            container.innerHTML = filtered.map(function(k) {
+                const status = statusBadge(k);
+                const expired = k.expiresAt && Date.now() > k.expiresAt;
+                const maxed   = k.maxUses && k.useCount >= k.maxUses;
+                const inactive = k.revoked || k.blacklisted || expired || maxed;
+                return '<div class="key-row' + (inactive ? ' key-row-inactive' : '') + '" id="key-row-' + k.id + '">' +
+                    '<div class="key-row-main">' +
+                    '<div class="key-row-top">' +
+                    '<span class="key-row-value">' + escHtml(k.key) + '</span>' +
+                    status +
+                    '</div>' +
+                    '<div class="key-row-meta">' +
+                    '<span title="Note"><i class="fa-solid fa-user" style="color:var(--muted);margin-right:0.3rem;font-size:0.7rem;"></i>' + escHtml(k.note || '—') + '</span>' +
+                    '<span title="Uses"><i class="fa-solid fa-chart-simple" style="color:var(--muted);margin-right:0.3rem;font-size:0.7rem;"></i>' + (k.useCount||0) + (k.maxUses ? '/' + k.maxUses : '') + ' uses</span>' +
+                    '<span title="HWID"><i class="fa-solid fa-fingerprint" style="color:var(--muted);margin-right:0.3rem;font-size:0.7rem;"></i>' + (k.hwid ? 'Locked' : 'Unlocked') + '</span>' +
+                    '<span title="Expires"><i class="fa-solid fa-clock" style="color:var(--muted);margin-right:0.3rem;font-size:0.7rem;"></i>' + (k.expiresAt ? fmtDate(k.expiresAt) : 'Never') + '</span>' +
+                    '<span title="Last used"><i class="fa-solid fa-bolt" style="color:var(--muted);margin-right:0.3rem;font-size:0.7rem;"></i>' + (k.lastUsed ? fmtDate(k.lastUsed) : 'Never') + '</span>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div class="key-row-actions">' +
+                    '<button class="copy-btn" style="font-size:0.72rem;" data-key-copy="' + escHtml(k.key) + '">Copy</button>' +
+                    '<button class="dash-icon-btn" title="' + (k.revoked ? 'Unrevoke' : 'Revoke') + '" data-key-revoke="' + k.id + '" data-key-revoked="' + k.revoked + '"><i class="fa-solid fa-' + (k.revoked ? 'rotate-left' : 'ban') + '"></i></button>' +
+                    '<button class="dash-icon-btn" title="Reset HWID" data-key-reset-hwid="' + k.id + '"' + (!k.hwid ? ' disabled style="opacity:0.4;cursor:not-allowed;"' : '') + '><i class="fa-solid fa-fingerprint"></i></button>' +
+                    '<button class="dash-icon-btn ' + (k.blacklisted ? 'active-danger' : '') + '" title="' + (k.blacklisted ? 'Unblacklist' : 'Blacklist') + '" data-key-blacklist="' + k.id + '" data-key-bl="' + k.blacklisted + '"><i class="fa-solid fa-skull"></i></button>' +
+                    '<button class="dash-icon-btn danger" title="Delete" data-key-delete="' + k.id + '"><i class="fa-solid fa-trash"></i></button>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            // Wire buttons
+            container.querySelectorAll('[data-key-copy]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    navigator.clipboard.writeText(btn.getAttribute('data-key-copy')).catch(()=>{});
+                    const orig = btn.textContent; btn.textContent = 'Copied!';
+                    setTimeout(()=>{ btn.textContent = orig; }, 1200);
+                });
+            });
+            container.querySelectorAll('[data-key-revoke]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    const id = btn.getAttribute('data-key-revoke');
+                    const isRevoked = btn.getAttribute('data-key-revoked') === 'true';
+                    const d = await apiKeys({ action: isRevoked ? 'unrevoke' : 'revoke', id }).catch(()=>({}));
+                    if (d.ok) { _allKeys = []; renderKeys(); } else alert('Failed: ' + (d.error||'unknown'));
+                });
+            });
+            container.querySelectorAll('[data-key-reset-hwid]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    if (!confirm('Reset HWID lock? The next device to use this key will become the new locked device.')) return;
+                    const d = await apiKeys({ action: 'update', id: btn.getAttribute('data-key-reset-hwid'), resetHwid: true }).catch(()=>({}));
+                    if (d.ok) { _allKeys = []; renderKeys(); } else alert('Failed: ' + (d.error||'unknown'));
+                });
+            });
+            container.querySelectorAll('[data-key-blacklist]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    const id = btn.getAttribute('data-key-blacklist');
+                    const isBl = btn.getAttribute('data-key-bl') === 'true';
+                    const d = await apiKeys({ action: 'update', id, blacklisted: !isBl }).catch(()=>({}));
+                    if (d.ok) { _allKeys = []; renderKeys(); } else alert('Failed: ' + (d.error||'unknown'));
+                });
+            });
+            container.querySelectorAll('[data-key-delete]').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    if (!confirm('Permanently delete this key?')) return;
+                    const d = await apiKeys({ action: 'delete', id: btn.getAttribute('data-key-delete') }).catch(()=>({}));
+                    if (d.ok) { _allKeys = []; renderKeys(); } else alert('Failed: ' + (d.error||'unknown'));
+                });
+            });
+        }
+
+        // ── Wire key system UI ────────────────────────────────────────────
+        function wireKeySystem() {
+            // Generate key button
+            const createBtn = document.getElementById('key-create-btn');
+            if (createBtn) {
+                createBtn.addEventListener('click', async function() {
+                    const note       = document.getElementById('key-note')?.value.trim() || '';
+                    const scriptHash = document.getElementById('key-script-select')?.value || null;
+                    const expiryVal  = document.getElementById('key-expiry')?.value;
+                    const maxUsesVal = document.getElementById('key-maxuses')?.value;
+                    const expiresAt  = expiryVal ? new Date(expiryVal).getTime() : null;
+                    const maxUses    = maxUsesVal ? parseInt(maxUsesVal) : null;
+
+                    createBtn.disabled = true;
+                    createBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+
+                    const d = await apiKeys({ action: 'create', note, scriptHash, expiresAt, maxUses }).catch(()=>({}));
+                    createBtn.disabled = false;
+                    createBtn.innerHTML = '<i class="fa-solid fa-key"></i> Generate Key';
+
+                    if (d.ok) {
+                        document.getElementById('key-create-value').textContent = d.key;
+                        document.getElementById('key-create-result').style.display = 'block';
+                        document.getElementById('key-note').value = '';
+                        document.getElementById('key-expiry').value = '';
+                        document.getElementById('key-maxuses').value = '';
+                        _allKeys = []; renderKeys();
+                    } else {
+                        alert('Failed: ' + (d.error||'unknown'));
+                    }
+                });
+            }
+
+            const keyCopyBtn = document.getElementById('key-copy-btn');
+            if (keyCopyBtn) {
+                keyCopyBtn.addEventListener('click', function() {
+                    const val = document.getElementById('key-create-value')?.textContent;
+                    if (val) navigator.clipboard.writeText(val).catch(()=>{});
+                    keyCopyBtn.textContent = 'Copied!';
+                    setTimeout(()=>{ keyCopyBtn.textContent = 'Copy'; }, 1200);
+                });
+            }
+
+            // Key search
+            const keySearch = document.getElementById('key-search');
+            if (keySearch) keySearch.addEventListener('input', function() { renderKeys(keySearch.value); });
+
+            // Keys refresh
+            const keysRefresh = document.getElementById('keys-refresh-btn');
+            if (keysRefresh) keysRefresh.addEventListener('click', function() { _allKeys = []; renderKeys(); });
+
+            // Upload key script
+            const ksSaveBtn   = document.getElementById('ks-save-btn');
+            const ksCancelBtn = document.getElementById('ks-cancel-btn');
+
+            if (ksCancelBtn) {
+                ksCancelBtn.addEventListener('click', function() {
+                    document.getElementById('ks-edit-hash').value = '';
+                    document.getElementById('ks-label').value = '';
+                    document.getElementById('ks-content').value = '';
+                    document.getElementById('ks-result').style.display = 'none';
+                    ksCancelBtn.style.display = 'none';
+                    ksSaveBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Save Key Script';
+                    switchTab('key-scripts');
+                });
+            }
+
+            if (ksSaveBtn) {
+                ksSaveBtn.addEventListener('click', async function() {
+                    const hash    = document.getElementById('ks-edit-hash').value || null;
+                    const label   = document.getElementById('ks-label').value.trim();
+                    const content = document.getElementById('ks-content').value.trim();
+                    if (!label)   { alert('Label is required.'); return; }
+                    if (!content) { alert('Script content is required.'); return; }
+
+                    ksSaveBtn.disabled = true;
+                    ksSaveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+                    const d = await apiKeys({ action: 'savescript', hash, label, content }).catch(()=>({}));
+                    ksSaveBtn.disabled = false;
+                    ksSaveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+
+                    if (d.ok) {
+                        const finalHash = d.hash;
+                        document.getElementById('ks-edit-hash').value = finalHash;
+                        document.getElementById('ks-result-hash').textContent = finalHash;
+                        document.getElementById('ks-loader-snippet').textContent = getLoaderSnippet(finalHash);
+                        document.getElementById('ks-result').style.display = 'block';
+                        ksCancelBtn.style.display = 'inline-flex';
+                        renderKeyScripts();
+                        // Reload key script selects
+                        const sel = document.getElementById('key-script-select');
+                        if (sel) { sel.innerHTML = '<option value="">— Any key script —</option>'; }
+                    } else {
+                        alert('Failed: ' + (d.error||'unknown'));
+                        ksSaveBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Save Key Script';
+                    }
+                });
+            }
+
+            // Copy loader snippet
+            const ksSnippetCopy = document.getElementById('ks-copy-snippet-btn');
+            if (ksSnippetCopy) {
+                ksSnippetCopy.addEventListener('click', function() {
+                    const text = document.getElementById('ks-loader-snippet')?.textContent;
+                    if (text) navigator.clipboard.writeText(text).catch(()=>{});
+                    ksSnippetCopy.textContent = 'Copied!';
+                    setTimeout(()=>{ ksSnippetCopy.textContent = 'Copy'; }, 1200);
+                });
+            }
+        }
+
         // ── Wire edit forms ───────────────────────────────────────────────
         function wireEditForms() {
 
@@ -1150,6 +1625,7 @@
 
             wireNavItems();
             wireEditForms();
+            wireKeySystem();
             refreshOverview();
         }
 
