@@ -1,7 +1,7 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/execute/:hash.lua", "destination": "/api/execute" },
+    { "source": "/api/loader/:hash.lua", "destination": "/api/loader" },
     { "source": "/((?!api/).*)",          "destination": "/public/$1" }
   ],
   "headers": [
