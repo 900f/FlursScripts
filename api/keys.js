@@ -127,51 +127,57 @@ export default async function handler(req, res) {
 // Returns: { ok:true, content:'...' } or { ok:false, error:'...' }
 async function handleValidate(req, res, body, ip) {
     const { key, hwid, scriptHash } = body;
-    if (!key || !scriptHash) return res.status(400).json({ ok: false, error: 'Missing key or scriptHash' });
 
-    // Find the key blob by scanning all keys (small dataset — fine)
+    // Hard block — no key or no scriptHash means the request is invalid
+    if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
+    if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
+
+    // Find the key
     const allKeys = await getAllKeys();
     const keyData = allKeys.find(k => k.key === key);
 
     if (!keyData)              return res.status(403).json({ ok: false, error: 'Invalid key' });
-    if (keyData.revoked)       return res.status(403).json({ ok: false, error: 'Key revoked' });
-    if (keyData.blacklisted)   return res.status(403).json({ ok: false, error: 'Key blacklisted' });
+    if (keyData.revoked)       return res.status(403).json({ ok: false, error: 'Key has been revoked' });
+    if (keyData.blacklisted)   return res.status(403).json({ ok: false, error: 'Key is blacklisted' });
 
     // Expiry check
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
-        return res.status(403).json({ ok: false, error: 'Key expired' });
+        return res.status(403).json({ ok: false, error: 'Key has expired' });
     }
 
-    // Script must match
+    // Max uses check — BEFORE incrementing
+    if (keyData.maxUses && (keyData.useCount || 0) >= keyData.maxUses) {
+        return res.status(403).json({ ok: false, error: 'Key has reached its maximum uses' });
+    }
+
+    // Script must match (if key is locked to a specific script)
     if (keyData.scriptHash && keyData.scriptHash !== scriptHash) {
-        return res.status(403).json({ ok: false, error: 'Key not valid for this script' });
+        return res.status(403).json({ ok: false, error: 'Key is not valid for this script' });
     }
 
-    // HWID lock
+    // HWID lock — first use locks to device, subsequent uses must match
     if (hwid) {
         if (!keyData.hwid) {
-            // First use — lock HWID
-            keyData.hwid = hwid;
+            keyData.hwid = hwid; // First use — lock HWID now
         } else if (keyData.hwid !== hwid) {
-            return res.status(403).json({ ok: false, error: 'HWID mismatch' });
+            return res.status(403).json({ ok: false, error: 'HWID mismatch — wrong device' });
         }
     }
 
-    // Log usage
+    // All checks passed — log the usage
     const now = Date.now();
-    keyData.lastUsed = now;
-    keyData.useCount = (keyData.useCount || 0) + 1;
-    keyData.usageLog = keyData.usageLog || [];
+    keyData.lastUsed  = now;
+    keyData.useCount  = (keyData.useCount || 0) + 1;
+    keyData.usageLog  = keyData.usageLog || [];
     keyData.usageLog.push({ ts: now, ip, hwid: hwid || null });
-    // Keep last 50 log entries
     if (keyData.usageLog.length > 50) keyData.usageLog = keyData.usageLog.slice(-50);
 
     await saveKey(keyData.id, keyData);
 
-    // Fetch the script content
+    // Fetch the protected Lua content
     const { blobs } = await list({ prefix: `keyscripts/${scriptHash}.lua` });
     const luaBlob = blobs.find(b => b.pathname === `keyscripts/${scriptHash}.lua`);
-    if (!luaBlob) return res.status(404).json({ ok: false, error: 'Script not found' });
+    if (!luaBlob) return res.status(404).json({ ok: false, error: 'Script not found on server' });
 
     const content = await fetch(luaBlob.url).then(r => r.text());
     return res.status(200).json({ ok: true, content });

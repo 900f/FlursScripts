@@ -1173,33 +1173,61 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `local API = "https://flurs.xyz/api/keys"
-local scriptHash = "${hash}"
+            return `-- Flurs Key Loader
+-- Set your key before running: getgenv().FLURS_KEY = "FLURS-XXXX-XXXX-XXXX-XXXX"
 
--- Prompt user for key
-local key = game:GetService("Players").LocalPlayer:GetAttribute("FlursKey")
-if not key then
-    key = tostring(game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Flurs Loader", Text = "Enter your key in executor console", Duration = 5
-    }))
-    key = getgenv().FLURS_KEY or error("Set getgenv().FLURS_KEY = 'YOUR-KEY' before running")
+local scriptHash = "${hash}"
+local API        = "https://flurs.xyz/api/keys"
+
+-- ── Key check ─────────────────────────────────────────────────────────
+local key = (getgenv and getgenv().FLURS_KEY) or (genv and genv().FLURS_KEY)
+if not key or key == "" then
+    error("[Flurs] No key set. Do: getgenv().FLURS_KEY = \\"YOUR-KEY\\" then re-run.", 0)
 end
 
-local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+-- ── HWID ──────────────────────────────────────────────────────────────
+local ok_hwid, hwid = pcall(function()
+    return game:GetService("RbxAnalyticsService"):GetClientId()
+end)
+hwid = ok_hwid and hwid or "unknown"
 
-local ok, res = pcall(function()
-    return game:HttpGet(API .. "?action=validate", true, {
-        ["Content-Type"] = "application/json",
-        body = game:GetService("HttpService"):JSONEncode({
-            action = "validate", key = key, hwid = hwid, scriptHash = scriptHash
-        })
-    })
+-- ── Validate with API ─────────────────────────────────────────────────
+local hs = game:GetService("HttpService")
+local body = hs:JSONEncode({
+    action     = "validate",
+    key        = key,
+    hwid       = hwid,
+    scriptHash = scriptHash,
+})
+
+local ok, response = pcall(function()
+    return hs:PostAsync(API, body, Enum.HttpContentType.ApplicationJson, false)
 end)
 
-if not ok then error("Loader: network error") end
-local data = game:GetService("HttpService"):JSONDecode(res)
-if not data.ok then error("Loader: " .. (data.error or "denied")) end
-loadstring(data.content)()`;
+if not ok then
+    error("[Flurs] Could not reach key server. Check your internet or try again.", 0)
+end
+
+local data
+ok, data = pcall(function() return hs:JSONDecode(response) end)
+if not ok or type(data) ~= "table" then
+    error("[Flurs] Invalid response from key server.", 0)
+end
+
+if not data.ok then
+    error("[Flurs] Access denied: " .. tostring(data.error or "unknown reason"), 0)
+end
+
+if not data.content or data.content == "" then
+    error("[Flurs] Server returned empty script.", 0)
+end
+
+-- ── Execute protected script ───────────────────────────────────────────
+local fn, loadErr = loadstring(data.content)
+if not fn then
+    error("[Flurs] Script failed to load: " .. tostring(loadErr), 0)
+end
+fn()`;
         }
 
         function statusBadge(key) {
