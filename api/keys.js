@@ -1,12 +1,6 @@
 // api/keys.js
-// Full key-based loader system:
-//   Admin actions (require password): create, list, revoke, delete, update, listscripts, savescript, deletescript
-//   Public actions (no password):     validate
-//
-// Blob layout:
-//   keys/<keyId>.json        – key metadata
-//   keyscripts/<hash>.lua    – protected Lua script
-//   keyscripts/<hash>.meta.json – script metadata
+// Full key-based loader system with GET + POST support for validation
+// Admin actions require POST + password
 
 import { put, list, del } from '@vercel/blob';
 import crypto from 'crypto';
@@ -18,23 +12,32 @@ if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not
 const attempts = new Map();
 const MAX_TRIES = 15;
 const WINDOW_MS = 15 * 60 * 1000;
+
 function isRateLimited(ip) {
     const now = Date.now(), e = attempts.get(ip);
-    if (!e || now > e.resetAt) { attempts.set(ip, { count: 0, resetAt: now + WINDOW_MS }); return false; }
+    if (!e || now > e.resetAt) { 
+        attempts.set(ip, { count: 0, resetAt: now + WINDOW_MS }); 
+        return false; 
+    }
     return e.count >= MAX_TRIES;
 }
+
 function recordFailure(ip) {
     const now = Date.now(), e = attempts.get(ip) || { count: 0, resetAt: now + WINDOW_MS };
-    e.count++; attempts.set(ip, e);
+    e.count++; 
+    attempts.set(ip, e);
 }
-function clearFailures(ip) { attempts.delete(ip); }
+
+function clearFailures(ip) { 
+    attempts.delete(ip); 
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function generateKey() {
-    // Format: FLURS-XXXX-XXXX-XXXX-XXXX
     const seg = () => crypto.randomBytes(2).toString('hex').toUpperCase();
     return `FLURS-${seg()}-${seg()}-${seg()}-${seg()}`;
 }
+
 function generateHash() {
     return crypto.randomBytes(16).toString('hex');
 }
@@ -48,7 +51,9 @@ async function getKey(keyId) {
 
 async function saveKey(keyId, data) {
     await put(`keys/${keyId}.json`, JSON.stringify(data), {
-        access: 'public', contentType: 'application/json', addRandomSuffix: false,
+        access: 'public', 
+        contentType: 'application/json', 
+        addRandomSuffix: false,
     });
 }
 
@@ -78,26 +83,44 @@ async function getAllScripts() {
 }
 
 export default async function handler(req, res) {
-    // CORS
+    // ── CORS ──────────────────────────────────────────────────────────────
     const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
     const origin = req.headers.origin || '';
     if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    // ── Rate limiting ────────────────────────────────────────────────────
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
     if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests.' });
 
-    const body = req.body || {};
-    const { action, password } = body;
+    // ── Parse params (GET query or POST body) ────────────────────────────
+    let params = {};
+    if (req.method === 'POST') {
+        params = req.body || {};
+    } else if (req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        params = Object.fromEntries(url.searchParams.entries());
+    } else {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
-    // Public actions — no password needed
-    if (action === 'validate') return handleValidate(req, res, body, ip);
+    const { action, password } = params;
 
-    // Admin actions — require password
+    // ── Public action: validate (GET or POST allowed) ────────────────────
+    if (action === 'validate') {
+        return handleValidate(req, res, params, ip);
+    }
+
+    // ── Admin actions: POST + password only ──────────────────────────────
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Admin actions require POST' });
+    }
+
     if (!password || password !== ADMIN_PASSWORD) {
         recordFailure(ip);
         return res.status(401).json({ error: 'Unauthorized' });
@@ -105,16 +128,16 @@ export default async function handler(req, res) {
     clearFailures(ip);
 
     try {
-        if (action === 'create')        return handleCreate(res, body);
+        if (action === 'create')        return handleCreate(res, params);
         if (action === 'list')          return handleList(res);
-        if (action === 'revoke')        return handleRevoke(res, body);
-        if (action === 'unrevoke')      return handleUnrevoke(res, body);
-        if (action === 'delete')        return handleDelete(res, body);
-        if (action === 'update')        return handleUpdate(res, body);
+        if (action === 'revoke')        return handleRevoke(res, params);
+        if (action === 'unrevoke')      return handleUnrevoke(res, params);
+        if (action === 'delete')        return handleDelete(res, params);
+        if (action === 'update')        return handleUpdate(res, params);
         if (action === 'listscripts')   return handleListScripts(res);
-        if (action === 'savescript')    return handleSaveScript(res, body);
-        if (action === 'deletescript')  return handleDeleteScript(res, body);
-        if (action === 'getscript')     return handleGetScript(res, body);
+        if (action === 'savescript')    return handleSaveScript(res, params);
+        if (action === 'deletescript')  return handleDeleteScript(res, params);
+        if (action === 'getscript')     return handleGetScript(res, params);
         return res.status(400).json({ error: 'Unknown action' });
     } catch (err) {
         console.error('keys.js error:', err);
@@ -122,17 +145,13 @@ export default async function handler(req, res) {
     }
 }
 
-// ── VALIDATE (called by loader in executor) ───────────────────────────────
-// Body: { action:'validate', key, hwid, scriptHash }
-// Returns: { ok:true, content:'...' } or { ok:false, error:'...' }
-async function handleValidate(req, res, body, ip) {
-    const { key, hwid, scriptHash } = body;
+// ── VALIDATE ──────────────────────────────────────────────────────────────
+async function handleValidate(req, res, params, ip) {
+    const { key, hwid, scriptHash } = params;
 
-    // Hard block — no key or no scriptHash means the request is invalid
     if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
     if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
 
-    // Find the key
     const allKeys = await getAllKeys();
     const keyData = allKeys.find(k => k.key === key);
 
@@ -140,31 +159,27 @@ async function handleValidate(req, res, body, ip) {
     if (keyData.revoked)       return res.status(403).json({ ok: false, error: 'Key has been revoked' });
     if (keyData.blacklisted)   return res.status(403).json({ ok: false, error: 'Key is blacklisted' });
 
-    // Expiry check
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
         return res.status(403).json({ ok: false, error: 'Key has expired' });
     }
 
-    // Max uses check — BEFORE incrementing
     if (keyData.maxUses && (keyData.useCount || 0) >= keyData.maxUses) {
         return res.status(403).json({ ok: false, error: 'Key has reached its maximum uses' });
     }
 
-    // Script must match (if key is locked to a specific script)
     if (keyData.scriptHash && keyData.scriptHash !== scriptHash) {
         return res.status(403).json({ ok: false, error: 'Key is not valid for this script' });
     }
 
-    // HWID lock — first use locks to device, subsequent uses must match
-    if (hwid) {
+    if (hwid && hwid !== 'unknown') {
         if (!keyData.hwid) {
-            keyData.hwid = hwid; // First use — lock HWID now
+            keyData.hwid = hwid;
         } else if (keyData.hwid !== hwid) {
             return res.status(403).json({ ok: false, error: 'HWID mismatch — wrong device' });
         }
     }
 
-    // All checks passed — log the usage
+    // Log usage
     const now = Date.now();
     keyData.lastUsed  = now;
     keyData.useCount  = (keyData.useCount || 0) + 1;
@@ -174,7 +189,7 @@ async function handleValidate(req, res, body, ip) {
 
     await saveKey(keyData.id, keyData);
 
-    // Fetch the protected Lua content
+    // Fetch script content
     const { blobs } = await list({ prefix: `keyscripts/${scriptHash}.lua` });
     const luaBlob = blobs.find(b => b.pathname === `keyscripts/${scriptHash}.lua`);
     if (!luaBlob) return res.status(404).json({ ok: false, error: 'Script not found on server' });
@@ -184,8 +199,8 @@ async function handleValidate(req, res, body, ip) {
 }
 
 // ── CREATE KEY ────────────────────────────────────────────────────────────
-async function handleCreate(res, body) {
-    const { note, expiresAt, scriptHash, maxUses } = body;
+async function handleCreate(res, params) {
+    const { note, expiresAt, scriptHash, maxUses } = params;
     const id  = generateHash();
     const key = generateKey();
     const data = {
@@ -214,8 +229,8 @@ async function handleList(res) {
 }
 
 // ── REVOKE KEY ────────────────────────────────────────────────────────────
-async function handleRevoke(res, body) {
-    const { id } = body;
+async function handleRevoke(res, params) {
+    const { id } = params;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const data = await getKey(id);
     if (!data) return res.status(404).json({ error: 'Key not found' });
@@ -225,8 +240,8 @@ async function handleRevoke(res, body) {
 }
 
 // ── UNREVOKE KEY ──────────────────────────────────────────────────────────
-async function handleUnrevoke(res, body) {
-    const { id } = body;
+async function handleUnrevoke(res, params) {
+    const { id } = params;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const data = await getKey(id);
     if (!data) return res.status(404).json({ error: 'Key not found' });
@@ -236,17 +251,17 @@ async function handleUnrevoke(res, body) {
 }
 
 // ── DELETE KEY ────────────────────────────────────────────────────────────
-async function handleDelete(res, body) {
-    const { id } = body;
+async function handleDelete(res, params) {
+    const { id } = params;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const { blobs } = await list({ prefix: `keys/${id}.json` });
     await Promise.all(blobs.map(b => del(b.url)));
     return res.status(200).json({ ok: true });
 }
 
-// ── UPDATE KEY (note, expiry, reset HWID, blacklist) ──────────────────────
-async function handleUpdate(res, body) {
-    const { id, note, expiresAt, resetHwid, blacklisted, scriptHash, maxUses } = body;
+// ── UPDATE KEY ────────────────────────────────────────────────────────────
+async function handleUpdate(res, params) {
+    const { id, note, expiresAt, resetHwid, blacklisted, scriptHash, maxUses } = params;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const data = await getKey(id);
     if (!data) return res.status(404).json({ error: 'Key not found' });
@@ -267,8 +282,8 @@ async function handleListScripts(res) {
 }
 
 // ── SAVE KEY SCRIPT ───────────────────────────────────────────────────────
-async function handleSaveScript(res, body) {
-    const { hash, label, content } = body;
+async function handleSaveScript(res, params) {
+    const { hash, label, content } = params;
     if (!content) return res.status(400).json({ error: 'Missing content' });
     const scriptHash = hash || generateHash();
 
@@ -290,17 +305,17 @@ async function handleSaveScript(res, body) {
 }
 
 // ── DELETE KEY SCRIPT ─────────────────────────────────────────────────────
-async function handleDeleteScript(res, body) {
-    const { hash } = body;
+async function handleDeleteScript(res, params) {
+    const { hash } = params;
     if (!hash) return res.status(400).json({ error: 'Missing hash' });
     const { blobs } = await list({ prefix: `keyscripts/${hash}` });
     await Promise.all(blobs.map(b => del(b.url)));
     return res.status(200).json({ ok: true });
 }
 
-// ── GET KEY SCRIPT content (for editor) ──────────────────────────────────
-async function handleGetScript(res, body) {
-    const { hash } = body;
+// ── GET KEY SCRIPT CONTENT (for editor) ──────────────────────────────────
+async function handleGetScript(res, params) {
+    const { hash } = params;
     if (!hash) return res.status(400).json({ error: 'Missing hash' });
     const { blobs } = await list({ prefix: `keyscripts/${hash}.lua` });
     const luaBlob = blobs.find(b => b.pathname === `keyscripts/${hash}.lua`);
