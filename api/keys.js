@@ -79,7 +79,7 @@ async function getAllScripts() {
 
 export default async function handler(req, res) {
     // CORS
-    const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://api.flurs.xyz';
+    const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
     const origin = req.headers.origin || '';
     if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
