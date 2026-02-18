@@ -907,6 +907,65 @@
             });
         }
 
+        // ── Intercept publish form to support edit mode ───────────────────
+        function wirePublishForm() {
+            const submitBtn = document.getElementById('us-submit-btn');
+            if (!submitBtn || submitBtn._editWired) return;
+            submitBtn._editWired = true;
+            submitBtn.addEventListener('click', async function(e) {
+                const editId = submitBtn.dataset.editId;
+                if (!editId) return; // no edit mode — let script.js handle publish
+                e.stopImmediatePropagation();
+                e.preventDefault();
+
+                const name        = (document.getElementById('us-name')?.value || '').trim();
+                const tags        = (document.getElementById('us-tags')?.value || '').split(',').map(t => t.trim()).filter(Boolean);
+                const description = (document.getElementById('us-description')?.value || '').trim();
+                const loadstring  = (document.getElementById('us-loadstring')?.value || '').trim();
+                if (!name || !loadstring) { alert('Name and loadstring are required.'); return; }
+
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+                // Check for new image
+                const imgInput = document.getElementById('us-image');
+                let imageBase64 = null, imageType = null;
+                if (imgInput && imgInput.files && imgInput.files[0]) {
+                    const file = imgInput.files[0];
+                    imageType  = file.type;
+                    imageBase64 = await new Promise(function(resolve) {
+                        const r = new FileReader();
+                        r.onload = function() { resolve(r.result.split(',')[1]); };
+                        r.readAsDataURL(file);
+                    });
+                }
+
+                const payload = { action: 'update', password: getPw(), id: editId, name, description, loadstring, tags };
+                if (imageBase64) { payload.imageBase64 = imageBase64; payload.imageType = imageType; }
+
+                const data = await apiUploadscript(payload).catch(() => ({}));
+                submitBtn.disabled = false;
+
+                if (data.ok) {
+                    // Reset form back to publish mode
+                    delete submitBtn.dataset.editId;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Publish Script';
+                    document.getElementById('us-name').value = '';
+                    document.getElementById('us-tags').value = '';
+                    document.getElementById('us-description').value = '';
+                    document.getElementById('us-loadstring').value = '';
+                    if (imgInput) imgInput.value = '';
+                    const resultEl = document.getElementById('us-result');
+                    if (resultEl) { resultEl.innerHTML = '<i class="fa-solid fa-check-circle"></i> Script updated!'; resultEl.style.display = 'flex'; setTimeout(() => { resultEl.style.display = 'none'; }, 3000); }
+                    renderPublicScripts();
+                    refreshOverview();
+                } else {
+                    alert('Update failed: ' + (data.error || 'unknown'));
+                    submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+                }
+            }, true); // capture phase so we run before script.js
+        }
+
         // ── Called once script.js unlocks the panel ───────────────────────
         function onDashboardUnlocked() {
             const gate  = document.getElementById('admin-gate');
@@ -921,6 +980,7 @@
             if (oldLogout) oldLogout.remove();
 
             wireNavItems();
+            wirePublishForm();
             refreshOverview();
         }
 

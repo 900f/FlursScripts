@@ -127,6 +127,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
     }
 
+    // ── RENAME (update label only) ────────────────────────────────────────
+    if (action === 'rename') {
+      if (!hash || !label) return res.status(400).json({ error: 'Missing hash or label' });
+      const existing = await getMeta(hash);
+      if (!existing) return res.status(404).json({ error: 'Script not found' });
+      await saveMeta(hash, { ...existing, label: label.trim() });
+      return res.status(200).json({ ok: true });
+    }
+
     // ── LIST ──────────────────────────────────────────────────────────────
     if (action === 'list') {
       const { blobs }   = await list({ prefix: 'scripts/' });
