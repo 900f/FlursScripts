@@ -1,7 +1,7 @@
 // api/files/v3/loader.js
 // Serves a Lua loader file per script hash.
 // The Lua file itself reads script_key from the executor environment,
-// calls your /api/keys validate endpoint via GET (query params), 
+// calls your /api/keys validate endpoint via RequestAsync (GET method),
 // and executes the protected script.
 //
 // URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
@@ -55,9 +55,9 @@ export default async function handler(req, res) {
     const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
     if (!hash) return res.status(400).end('-- invalid_hash');
 
-    const API = 'https://flurs.xyz/api/keys';
+    const API = 'https://api.flurs.xyz/api/keys';
 
-    const lua = `-- Flurs Loader (GET version) | https://flurs.xyz
+    const lua = `-- Flurs Loader (RequestAsync GET version) | https://flurs.xyz
 local _hash = "${hash}"
 local _api  = "${API}"
 
@@ -79,20 +79,31 @@ local hs   = game:GetService("HttpService")
 local query = "action=validate" ..
               "&key="       .. hs:UrlEncode(key) ..
               "&hwid="      .. hs:UrlEncode(ok_hwid and hwid or "unknown") ..
-              "&scriptHash= " .. hs:UrlEncode(_hash)
+              "&scriptHash=" .. hs:UrlEncode(_hash)
 
 local ok, response = pcall(function()
-    return hs:GetAsync(_api .. "?" .. query)
+    return hs:RequestAsync({
+        Url = _api .. "?" .. query,
+        Method = "GET",
+        Headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json"  -- optional, harmless for GET
+        }
+    })
 end)
 
 if not ok then
-    error("[Flurs] Could not reach server (GET failed). Check connection or executor HTTP support.", 0)
+    error("[Flurs] RequestAsync failed to send: " .. tostring(response), 0)
+end
+
+if not response.Success then
+    error("[Flurs] Server error - " .. tostring(response.StatusCode) .. " " .. tostring(response.StatusMessage), 0)
 end
 
 local data
-ok, data = pcall(hs.JSONDecode, hs, response)
+ok, data = pcall(hs.JSONDecode, hs, response.Body)
 if not ok or type(data) ~= "table" then
-    error("[Flurs] Bad response from server.", 0)
+    error("[Flurs] Bad JSON response from server: " .. tostring(response.Body:sub(1, 200)), 0)
 end
 
 if not data.ok then

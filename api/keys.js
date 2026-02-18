@@ -122,9 +122,13 @@ export default async function handler(req, res) {
     }
 }
 
+// ── VALIDATE (called by loader in executor) ───────────────────────────────
+// Body: { action:'validate', key, hwid, scriptHash }
+// Returns: { ok:true, content:'...' } or { ok:false, error:'...' }
 async function handleValidate(req, res, body, ip) {
     const { key, hwid, scriptHash } = body;
 
+    // Hard block — no key or no scriptHash means the request is invalid
     if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
     if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
 
