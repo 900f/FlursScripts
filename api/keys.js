@@ -79,7 +79,7 @@ async function getAllScripts() {
 
 export default async function handler(req, res) {
     // CORS
-    const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
+    const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://api.flurs.xyz';
     const origin = req.headers.origin || '';
     if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -122,13 +122,9 @@ export default async function handler(req, res) {
     }
 }
 
-// ── VALIDATE (called by loader in executor) ───────────────────────────────
-// Body: { action:'validate', key, hwid, scriptHash }
-// Returns: { ok:true, content:'...' } or { ok:false, error:'...' }
 async function handleValidate(req, res, body, ip) {
     const { key, hwid, scriptHash } = body;
 
-    // Hard block — no key or no scriptHash means the request is invalid
     if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
     if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
 
