@@ -278,7 +278,7 @@
     <section id="admin-page" class="page dash-page-override">
 
         <!-- LOGIN GATE -->
-        <div id="dashboard-gate" class="dash-gate">
+        <div id="dashboard-gate" class="dash-gate" style="display:none;">
             <div class="dash-login-card">
                 <div class="dash-login-icon"><i class="fa-solid fa-terminal"></i></div>
                 <h2>Flurs Admin</h2>
@@ -889,6 +889,9 @@
             wireLogin();
             wireLogout();
             wireNavItems();
+            // Show the gate by default when admin page loads
+            const gate = document.getElementById('dashboard-gate');
+            if (gate) gate.style.display = 'flex';
             if (window.location.hash === '#uploadscript') {
                 history.replaceState(null, '', '#admin');
             }
