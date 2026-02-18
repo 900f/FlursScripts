@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
     if (!hash) return res.status(400).end('-- invalid_hash');
 
-    const API = 'https://api.flurs.xyz/api/keys';
+    const API = 'https://flurs.xyz/api/keys';
 
     const lua = `-- Flurs Loader (GET version) | https://flurs.xyz
 local _hash = "${hash}"
