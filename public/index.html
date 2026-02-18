@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Flurs Script Hub</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -19,12 +19,39 @@
                 <span class="logo-icon"></span>
                 Flurs
             </a>
-            <ul class="nav-links">
+            <ul class="nav-links" id="nav-links">
                 <li><a href="#home" class="nav-link active" data-page="home">Home</a></li>
                 <li><a href="#scripts" class="nav-link" data-page="scripts">Scripts</a></li>
             </ul>
+            <button class="burger-btn" id="burger-btn" aria-label="Open menu" aria-expanded="false">
+                <span class="burger-line"></span>
+                <span class="burger-line"></span>
+                <span class="burger-line"></span>
+            </button>
         </div>
     </nav>
+
+    <!-- Mobile menu overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+    <div class="mobile-menu" id="mobile-menu">
+        <div class="mobile-menu-header">
+            <span class="logo" style="pointer-events:none;">
+                <span class="logo-icon"></span>
+                Flurs
+            </span>
+            <button class="mobile-menu-close" id="mobile-menu-close" aria-label="Close menu">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <ul class="mobile-nav-links">
+            <li><a href="#home" class="mobile-nav-link active" data-page="home"><i class="fa-solid fa-house"></i> Home</a></li>
+            <li><a href="#scripts" class="mobile-nav-link" data-page="scripts"><i class="fa-solid fa-code"></i> Scripts</a></li>
+        </ul>
+        <div class="mobile-menu-footer">
+            <a href="#" id="mobile-discord-btn" class="mobile-social-btn discord"><i class="fa-brands fa-discord"></i> Discord</a>
+            <a href="#" id="mobile-tiktok-btn" class="mobile-social-btn tiktok"><i class="fa-brands fa-tiktok"></i> TikTok</a>
+        </div>
+    </div>
 
     <div id="image-modal" class="image-modal">
         <div class="modal-overlay"></div>
@@ -1180,6 +1207,79 @@
             document.addEventListener('DOMContentLoaded', init);
         } else { setTimeout(init, 0); }
 
+    })();
+    </script>
+
+    <script>
+    /* ── MOBILE MENU ──────────────────────────────────────────────────────── */
+    (function() {
+        const burgerBtn  = document.getElementById('burger-btn');
+        const closeBtn   = document.getElementById('mobile-menu-close');
+        const overlay    = document.getElementById('mobile-menu-overlay');
+        const menu       = document.getElementById('mobile-menu');
+        const mobileLinks = document.querySelectorAll('.mobile-nav-link');
+
+        function openMenu() {
+            menu.classList.add('open');
+            overlay.classList.add('open');
+            burgerBtn.classList.add('open');
+            burgerBtn.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeMenu() {
+            menu.classList.remove('open');
+            overlay.classList.remove('open');
+            burgerBtn.classList.remove('open');
+            burgerBtn.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        if (burgerBtn) burgerBtn.addEventListener('click', openMenu);
+        if (closeBtn)  closeBtn.addEventListener('click', closeMenu);
+        if (overlay)   overlay.addEventListener('click', closeMenu);
+
+        mobileLinks.forEach(function(link) {
+            link.addEventListener('click', function() {
+                // Sync active state with desktop nav
+                mobileLinks.forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                const page = link.getAttribute('data-page');
+                if (page) {
+                    document.querySelectorAll('.nav-link').forEach(l => {
+                        l.classList.toggle('active', l.getAttribute('data-page') === page);
+                    });
+                }
+                closeMenu();
+            });
+        });
+
+        // Sync mobile active state when desktop nav changes
+        document.querySelectorAll('.nav-link').forEach(function(link) {
+            link.addEventListener('click', function() {
+                const page = link.getAttribute('data-page');
+                mobileLinks.forEach(l => {
+                    l.classList.toggle('active', l.getAttribute('data-page') === page);
+                });
+            });
+        });
+
+        // Wire mobile social buttons to same targets as desktop
+        const discordBtn = document.getElementById('download-btn');
+        const tiktokBtn  = document.getElementById('tiktok-btn');
+        const mobileDiscord = document.getElementById('mobile-discord-btn');
+        const mobileTiktok  = document.getElementById('mobile-tiktok-btn');
+        if (mobileDiscord && discordBtn) {
+            mobileDiscord.addEventListener('click', function(e) {
+                e.preventDefault(); closeMenu();
+                discordBtn.click();
+            });
+        }
+        if (mobileTiktok && tiktokBtn) {
+            mobileTiktok.addEventListener('click', function(e) {
+                e.preventDefault(); closeMenu();
+                tiktokBtn.click();
+            });
+        }
     })();
     </script>
 
