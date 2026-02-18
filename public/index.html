@@ -271,174 +271,635 @@
         </div>
     </section>
 
-    <!-- UPLOAD SCRIPT PAGE (hidden from nav, access via #uploadscript) -->
-    <section id="uploadscript-page" class="page">
-        <div class="container">
-            <div class="page-header">
-                <h2 class="page-title">Upload Script</h2>
-                <p class="page-subtitle">Add a new script to the public script library</p>
-            </div>
+    <!-- UPLOAD SCRIPT PAGE - unified into admin dashboard -->
+    <section id="uploadscript-page" class="page" style="display:none!important;"></section>
 
-            <!-- Password Gate -->
-            <div id="upload-gate" class="admin-gate">
-                <div class="admin-login-card">
-                    <h3>Admin Access</h3>
-                    <p>Enter the admin password to continue.</p>
-                    <div class="admin-input-row">
-                        <input type="password" id="upload-gate-password" placeholder="Password..." autocomplete="off">
-                        <button id="upload-gate-btn" class="option-btn">Unlock</button>
+    <!-- UNIFIED ADMIN DASHBOARD (access via #admin or #uploadscript) -->
+    <section id="admin-page" class="page dash-page-override">
+
+        <!-- LOGIN GATE -->
+        <div id="dashboard-gate" class="dash-gate">
+            <div class="dash-login-card">
+                <div class="dash-login-icon"><i class="fa-solid fa-terminal"></i></div>
+                <h2>Flurs Admin</h2>
+                <p>Authenticate to access the control panel</p>
+                <div class="dash-login-field">
+                    <i class="fa-solid fa-lock dash-field-icon"></i>
+                    <input type="password" id="admin-password-input" placeholder="Enter admin password…" autocomplete="off">
+                </div>
+                <button id="admin-login-btn" class="dash-login-btn">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Unlock Dashboard
+                </button>
+                <div id="admin-login-error" class="dash-login-error" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Incorrect password
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD PANEL (shown after login) -->
+        <div id="admin-panel" class="dashboard-wrapper" style="display:none;">
+
+            <!-- Sidebar -->
+            <aside class="dash-sidebar">
+                <div class="dash-sidebar-top">
+                    <div class="dash-brand">
+                        <div class="dash-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div>
+                            <div class="dash-brand-name">Flurs Admin</div>
+                            <div class="dash-brand-role">Control Panel</div>
+                        </div>
                     </div>
-                    <div id="upload-gate-error" class="admin-error" style="display:none;">Incorrect password.</div>
+                    <nav class="dash-nav">
+                        <button class="dash-nav-item active" data-tab="overview">
+                            <i class="fa-solid fa-chart-line"></i>
+                            <span>Overview</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="public-scripts">
+                            <i class="fa-solid fa-scroll"></i>
+                            <span>Public Scripts</span>
+                            <span class="dash-nav-badge" id="public-count-badge">0</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="host-scripts">
+                            <i class="fa-solid fa-server"></i>
+                            <span>Hosted Scripts</span>
+                            <span class="dash-nav-badge" id="hosted-count-badge">0</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="add-public">
+                            <i class="fa-solid fa-plus-circle"></i>
+                            <span>Add Public Script</span>
+                        </button>
+                        <button class="dash-nav-item" data-tab="add-hosted">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Upload &amp; Host</span>
+                        </button>
+                    </nav>
                 </div>
-            </div>
-
-            <!-- Upload Panel -->
-            <div id="upload-panel" style="display:none; max-width: 680px; margin: 0 auto;">
-                <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
-                    <a href="#admin" class="option-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;">
-                        <i class="fa-solid fa-shield-halved"></i> Go to Admin Panel
-                    </a>
+                <div class="dash-sidebar-bottom">
+                    <button id="dash-logout-btn" class="dash-logout-btn">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
                 </div>
-                <div class="admin-section">
-                    <h3 class="admin-section-title"><i class="fa-solid fa-plus" style="margin-right:0.5rem;color:var(--accent2)"></i>New Script Card</h3>
-                    <div class="admin-upload-form">
+            </aside>
 
-                        <div class="admin-field">
-                            <label>Script Name</label>
-                            <input type="text" id="us-name" placeholder="e.g. Soluna Arsenal" class="admin-input">
+            <!-- Main content -->
+            <main class="dash-main">
+
+                <!-- Top bar -->
+                <header class="dash-topbar">
+                    <div class="dash-topbar-left">
+                        <div class="dash-breadcrumb">
+                            <span class="dash-bc-root">Dashboard</span>
+                            <i class="fa-solid fa-chevron-right dash-bc-sep"></i>
+                            <span class="dash-bc-current" id="dash-bc-current">Overview</span>
                         </div>
+                    </div>
+                    <div class="dash-topbar-right">
+                        <div class="dash-topbar-time" id="dash-clock"></div>
+                        <a href="#home" class="dash-exit-btn">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> View Site
+                        </a>
+                    </div>
+                </header>
 
-                        <div class="admin-field">
-                            <label>Description</label>
-                            <input type="text" id="us-description" placeholder="Short description shown on the card" class="admin-input">
+                <!-- TAB: OVERVIEW -->
+                <div class="dash-tab active" id="tab-overview">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Overview</h1>
+                        <p class="dash-tab-subtitle">Your hub at a glance</p>
+                    </div>
+                    <div class="dash-stat-grid">
+                        <div class="dash-stat-card" style="--card-accent:#7c6dfa;">
+                            <div class="dash-stat-icon"><i class="fa-solid fa-scroll"></i></div>
+                            <div class="dash-stat-body">
+                                <div class="dash-stat-value" id="ov-public-count">—</div>
+                                <div class="dash-stat-label">Public Scripts</div>
+                            </div>
+                            <div class="dash-stat-trend"><i class="fa-solid fa-arrow-trend-up"></i></div>
                         </div>
-
-                        <div class="admin-field">
-                            <label>Loadstring <span class="admin-hint">(the full loadstring players copy)</span></label>
-                            <textarea id="us-loadstring" class="admin-textarea" style="min-height:90px;" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
+                        <div class="dash-stat-card" style="--card-accent:#34d399;">
+                            <div class="dash-stat-icon"><i class="fa-solid fa-server"></i></div>
+                            <div class="dash-stat-body">
+                                <div class="dash-stat-value" id="ov-hosted-count">—</div>
+                                <div class="dash-stat-label">Hosted Scripts</div>
+                            </div>
+                            <div class="dash-stat-trend"><i class="fa-solid fa-server"></i></div>
                         </div>
-
-                        <div class="admin-field">
-                            <label>Tags <span class="admin-hint">(comma separated, e.g. Arsenal, Aimbot, Universal)</span></label>
-                            <input type="text" id="us-tags" placeholder="Arsenal, Aimbot, Universal" class="admin-input">
+                        <div class="dash-stat-card" style="--card-accent:#f59e0b;">
+                            <div class="dash-stat-icon"><i class="fa-solid fa-users"></i></div>
+                            <div class="dash-stat-body">
+                                <div class="dash-stat-value">1,000+</div>
+                                <div class="dash-stat-label">Community Members</div>
+                            </div>
+                            <div class="dash-stat-trend"><i class="fa-solid fa-fire"></i></div>
                         </div>
+                        <div class="dash-stat-card" style="--card-accent:#ec4899;">
+                            <div class="dash-stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="dash-stat-body">
+                                <div class="dash-stat-value">99%</div>
+                                <div class="dash-stat-label">Uptime</div>
+                            </div>
+                            <div class="dash-stat-trend"><i class="fa-solid fa-signal"></i></div>
+                        </div>
+                        <div class="dash-stat-card" style="--card-accent:#a78bfa;">
+                            <div class="dash-stat-icon"><i class="fa-solid fa-layer-group"></i></div>
+                            <div class="dash-stat-body">
+                                <div class="dash-stat-value" id="ov-total-count">—</div>
+                                <div class="dash-stat-label">Total Scripts</div>
+                            </div>
+                            <div class="dash-stat-trend"><i class="fa-solid fa-infinity"></i></div>
+                        </div>
+                    </div>
+                    <div class="dash-two-col">
+                        <div class="dash-card">
+                            <div class="dash-card-header">
+                                <h3><i class="fa-solid fa-scroll" style="color:var(--accent2);margin-right:0.5rem;"></i>Recent Public Scripts</h3>
+                                <button class="dash-card-action" data-tab="public-scripts">View all</button>
+                            </div>
+                            <div id="ov-public-list" class="dash-recent-list">
+                                <p class="dash-empty">Loading…</p>
+                            </div>
+                        </div>
+                        <div class="dash-card">
+                            <div class="dash-card-header">
+                                <h3><i class="fa-solid fa-server" style="color:var(--green);margin-right:0.5rem;"></i>Recent Hosted Scripts</h3>
+                                <button class="dash-card-action" data-tab="host-scripts">View all</button>
+                            </div>
+                            <div id="ov-hosted-list" class="dash-recent-list">
+                                <p class="dash-empty">Loading…</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dash-card" style="margin-top:1.5rem;">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-bolt" style="color:#f59e0b;margin-right:0.5rem;"></i>Quick Actions</h3>
+                        </div>
+                        <div class="dash-quick-actions">
+                            <button class="dash-qa-btn" data-tab="add-public">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Add Public Script</span>
+                            </button>
+                            <button class="dash-qa-btn" data-tab="add-hosted">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                <span>Upload &amp; Host Script</span>
+                            </button>
+                            <button class="dash-qa-btn" data-tab="public-scripts">
+                                <i class="fa-solid fa-list"></i>
+                                <span>Manage Public Scripts</span>
+                            </button>
+                            <button class="dash-qa-btn" data-tab="host-scripts">
+                                <i class="fa-solid fa-database"></i>
+                                <span>Manage Hosted Scripts</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-                        <div class="admin-field">
-                            <label>Script Image <span class="admin-hint">(JPG or PNG, shown as the card thumbnail)</span></label>
-                            <div class="upload-image-area" id="upload-image-area">
-                                <i class="fa-solid fa-image" style="font-size:2rem;color:var(--muted);margin-bottom:0.75rem;"></i>
-                                <p style="color:var(--muted);font-size:0.9rem;margin:0;">Click to choose an image or drag &amp; drop</p>
+                <!-- TAB: PUBLIC SCRIPTS -->
+                <div class="dash-tab" id="tab-public-scripts">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Public Scripts</h1>
+                        <p class="dash-tab-subtitle">Scripts displayed on the public Scripts page</p>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-list" style="color:var(--accent2);margin-right:0.5rem;"></i>All Public Scripts</h3>
+                            <button class="dash-card-action" data-tab="add-public"><i class="fa-solid fa-plus" style="margin-right:0.35rem;"></i>Add New</button>
+                        </div>
+                        <div id="us-scripts-list" class="dash-scripts-list">
+                            <p class="dash-empty" id="us-no-scripts-msg">Loading scripts…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: HOSTED SCRIPTS -->
+                <div class="dash-tab" id="tab-host-scripts">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Hosted Scripts</h1>
+                        <p class="dash-tab-subtitle">Privately hosted Lua — only Roblox executors can fetch them</p>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <h3><i class="fa-solid fa-server" style="color:var(--green);margin-right:0.5rem;"></i>Hosted Scripts</h3>
+                            <button class="dash-card-action" data-tab="add-hosted"><i class="fa-solid fa-plus" style="margin-right:0.35rem;"></i>Upload New</button>
+                        </div>
+                        <div id="hosted-scripts-list" class="dash-scripts-list hosted-scripts-list">
+                            <p class="dash-empty" id="no-scripts-msg">No scripts uploaded yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: ADD PUBLIC SCRIPT -->
+                <div class="dash-tab" id="tab-add-public">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Add Public Script</h1>
+                        <p class="dash-tab-subtitle">Publish a new script card to the public Scripts page</p>
+                    </div>
+                    <div class="dash-form-card">
+                        <div class="dash-form-grid">
+                            <div class="dash-form-group">
+                                <label class="dash-label">Script Name</label>
+                                <input type="text" id="us-name" placeholder="e.g. Soluna Arsenal" class="dash-input admin-input">
+                            </div>
+                            <div class="dash-form-group">
+                                <label class="dash-label">Tags <span class="dash-hint">comma separated</span></label>
+                                <input type="text" id="us-tags" placeholder="Arsenal, Aimbot, Universal" class="dash-input admin-input">
+                            </div>
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Description</label>
+                            <input type="text" id="us-description" placeholder="Short description shown on the card" class="dash-input admin-input">
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Loadstring <span class="dash-hint">full loadstring players copy</span></label>
+                            <textarea id="us-loadstring" class="dash-textarea admin-textarea" style="min-height:90px;" placeholder="loadstring(game:HttpGet(&quot;https://...&quot;))()"></textarea>
+                        </div>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Script Image <span class="dash-hint">JPG or PNG thumbnail</span></label>
+                            <div class="dash-upload-area upload-image-area" id="upload-image-area">
+                                <i class="fa-solid fa-image"></i>
+                                <p>Click to choose or drag &amp; drop</p>
                                 <input type="file" id="us-image" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
                             </div>
                             <div id="image-preview-wrap" style="display:none;margin-top:0.75rem;position:relative;">
                                 <img id="us-image-preview" style="width:100%;border-radius:10px;border:1px solid var(--border);max-height:200px;object-fit:cover;" src="" alt="Preview">
-                                <button id="us-image-clear" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.7);border:none;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>
+                                <button id="us-image-clear" class="dash-img-clear-btn">✕</button>
                             </div>
                         </div>
-
-                        <div class="admin-actions-row">
-                            <button id="us-submit-btn" class="download-btn" style="width:auto;padding:0.75rem 2rem;">
-                                <span class="btn-content">
-                                    <span class="btn-icon"><i class="fa-solid fa-upload"></i></span>
-                                    <span class="btn-text"><span class="btn-title">Publish Script</span></span>
-                                </span>
+                        <div class="dash-form-actions">
+                            <button id="us-submit-btn" class="dash-primary-btn">
+                                <i class="fa-solid fa-upload"></i> Publish Script
                             </button>
                         </div>
-
-                        <div id="us-result" class="upload-result" style="display:none;">
-                            <p style="color:var(--green);font-weight:600;margin:0;"><i class="fa-solid fa-check-circle" style="margin-right:0.4rem;"></i>Script published! It now appears on the Scripts page.</p>
+                        <div id="us-result" class="dash-success-banner" style="display:none;">
+                            <i class="fa-solid fa-check-circle"></i> Script published! It now appears on the Scripts page.
                         </div>
-
                     </div>
                 </div>
 
-                <!-- Manage Scripts List -->
-                <div class="admin-section">
-                    <h3 class="admin-section-title"><i class="fa-solid fa-list" style="margin-right:0.5rem;color:var(--accent2)"></i>Manage Scripts</h3>
-                    <div id="us-scripts-list">
-                        <p class="admin-hint" id="us-no-scripts-msg">Loading scripts…</p>
+                <!-- TAB: UPLOAD & HOST -->
+                <div class="dash-tab" id="tab-add-hosted">
+                    <div class="dash-tab-header">
+                        <h1 class="dash-tab-title">Upload &amp; Host Script</h1>
+                        <p class="dash-tab-subtitle">Host raw Lua — only Roblox executors can fetch it</p>
                     </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- ADMIN UPLOAD PAGE (hidden from nav, access via #admin) -->
-    <section id="admin-page" class="page">
-        <div class="container">
-            <div class="page-header">
-                <h2 class="page-title">Script Host Admin</h2>
-                <p class="page-subtitle">Upload and manage privately hosted scripts</p>
-            </div>
-
-            <!-- Password Gate -->
-            <div id="admin-gate" class="admin-gate">
-                <div class="admin-login-card">
-                    <h3>Admin Access</h3>
-                    <p>Enter the admin password to continue.</p>
-                    <div class="admin-input-row">
-                        <input type="password" id="admin-password-input" placeholder="Password..." autocomplete="off">
-                        <button id="admin-login-btn" class="option-btn">Unlock</button>
-                    </div>
-                    <div id="admin-login-error" class="admin-error" style="display:none;">Incorrect password.</div>
-                </div>
-            </div>
-
-            <!-- Admin Panel (shown after login) -->
-            <div id="admin-panel" class="admin-panel" style="display:none;">
-                <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
-                    <a href="#uploadscript" class="option-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;">
-                        <i class="fa-solid fa-upload"></i> Go to Upload Scripts
-                    </a>
-                </div>
-
-                <!-- Upload Form -->
-                <div class="admin-section">
-                    <h3 class="admin-section-title">Upload New Script</h3>
-                    <div class="admin-upload-form">
-                        <div class="admin-field">
-                            <label>Script Label <span class="admin-hint">(only visible to you in the list below)</span></label>
-                            <input type="text" id="upload-label" placeholder="e.g. My Rivals Script v2" class="admin-input">
+                    <div class="dash-form-card">
+                        <div class="dash-form-group">
+                            <label class="dash-label">Script Label <span class="dash-hint">only visible to you</span></label>
+                            <input type="text" id="upload-label" placeholder="e.g. My Rivals Script v2" class="dash-input admin-input">
                         </div>
-                        <div class="admin-field">
-                            <label>Script Content <span class="admin-hint">(Lua code)</span></label>
-                            <textarea id="upload-content" class="admin-textarea" placeholder="-- paste your Lua script here"></textarea>
+                        <div class="dash-form-group">
+                            <label class="dash-label">Lua Script Content</label>
+                            <textarea id="upload-content" class="dash-textarea admin-textarea" style="min-height:260px;font-family:'Courier New',monospace;" placeholder="-- paste your Lua script here"></textarea>
                         </div>
-                        <div class="admin-actions-row">
-                            <button id="upload-script-btn" class="download-btn" style="width:auto;padding:0.75rem 2rem;">
-                                <span class="btn-content"><span class="btn-text"><span class="btn-title">Generate & Save</span></span></span>
+                        <div class="dash-form-actions">
+                            <button id="upload-script-btn" class="dash-primary-btn">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Generate &amp; Save
                             </button>
                         </div>
-                        <div id="upload-result" class="upload-result" style="display:none;">
-                            <p class="upload-result-label">Raw URL (use this in loadstring):</p>
-                            <div class="script-code-container">
-                                <code class="script-code" id="upload-result-url"></code>
-                                <button class="copy-btn" id="upload-copy-btn">Copy</button>
+                        <div id="upload-result" class="dash-result-block" style="display:none;">
+                            <div class="dash-result-row">
+                                <span class="dash-result-label">Raw URL</span>
+                                <div class="script-code-container">
+                                    <code class="script-code" id="upload-result-url"></code>
+                                    <button class="copy-btn" id="upload-copy-btn">Copy</button>
+                                </div>
                             </div>
-                            <p class="upload-result-label" style="margin-top:0.5rem;">Loadstring:</p>
-                            <div class="script-code-container">
-                                <code class="script-code" id="upload-result-loadstring"></code>
-                                <button class="copy-btn" id="upload-copy-ls-btn">Copy</button>
+                            <div class="dash-result-row" style="margin-top:0.75rem;">
+                                <span class="dash-result-label">Loadstring</span>
+                                <div class="script-code-container">
+                                    <code class="script-code" id="upload-result-loadstring"></code>
+                                    <button class="copy-btn" id="upload-copy-ls-btn">Copy</button>
+                                </div>
                             </div>
-                            <p class="admin-hint" style="margin-top:0.5rem;">🔒 Browsers visiting this URL get a <strong>403 Forbidden</strong>. Only Roblox executors (detected by User-Agent) can fetch the Lua.</p>
+                            <div class="dash-security-note">
+                                <i class="fa-solid fa-lock"></i>
+                                Browsers get <strong>403 Forbidden</strong> — only Roblox executors (User-Agent check) can fetch the Lua.
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Hosted Scripts List -->
-                <div class="admin-section">
-                    <h3 class="admin-section-title">Hosted Scripts</h3>
-                    <div id="hosted-scripts-list" class="hosted-scripts-list">
-                        <p class="admin-hint" id="no-scripts-msg">No scripts uploaded yet.</p>
-                    </div>
-                </div>
-
-            </div>
+            </main>
         </div>
+
     </section>
 
     <script src="script.js"></script>
     <script src="visitor-tracker.js"></script>
+
+    <script>
+    /* ── UNIFIED ADMIN DASHBOARD CONTROLLER ──────────────────────────── */
+    (function() {
+
+        // Hardcoded scripts baked into the page
+        const HARDCODED_SCRIPTS = [
+            { name: 'Soluna Arsenal',          tags: ['Soluna','Arsenal'] },
+            { name: 'Weed Client',             tags: ['Arsenal','Universal','Rivals'] },
+            { name: 'Argon Cheat - Blade Ball',tags: ['Blade Ball','Argon'] },
+            { name: 'Plutonium Cheat',         tags: ['Cheat','Hub','Blade Ball'] },
+            { name: 'Thunder Hub',             tags: ['MM2','Murder Mystery'] },
+            { name: 'TALENTLESS',              tags: ['Piano','TALENTLESS','Auto Play'] },
+            { name: 'Fisch Eclipse',           tags: ['Fisch','Eclipse','Auto Play'] },
+            { name: 'Strucid Cheats',          tags: ['Strucid','Hitboxes','Cheats'] },
+            { name: 'Soluna Rivals',           tags: ['Rivals','Aimbot','Cheats'] },
+        ];
+        const HARDCODED_COUNT = HARDCODED_SCRIPTS.length; // 9
+
+        // ── Helpers ──────────────────────────────────────────────────────
+        function getPublicScripts() {
+            try { return JSON.parse(localStorage.getItem('userScripts') || '[]'); } catch(e) { return []; }
+        }
+        function getHostedScripts() {
+            try { return JSON.parse(localStorage.getItem('hostedScripts') || '[]'); } catch(e) { return []; }
+        }
+        function totalPublic() { return HARDCODED_COUNT + getPublicScripts().length; }
+        function totalHosted() { return getHostedScripts().length; }
+        function totalScripts() { return totalPublic() + totalHosted(); }
+
+        // ── Tab navigation ────────────────────────────────────────────────
+        function switchTab(tabName) {
+            document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.dash-nav-item').forEach(n => n.classList.remove('active'));
+            const tab = document.getElementById('tab-' + tabName);
+            if (tab) tab.classList.add('active');
+            document.querySelectorAll('.dash-nav-item[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
+            const labels = {
+                'overview':       'Overview',
+                'public-scripts': 'Public Scripts',
+                'host-scripts':   'Hosted Scripts',
+                'add-public':     'Add Public Script',
+                'add-hosted':     'Upload & Host'
+            };
+            const bc = document.getElementById('dash-bc-current');
+            if (bc) bc.textContent = labels[tabName] || tabName;
+            if (tabName === 'overview')       refreshOverview();
+            if (tabName === 'public-scripts') renderPublicList();
+            if (tabName === 'host-scripts')   renderHostedList();
+        }
+
+        // ── Overview ──────────────────────────────────────────────────────
+        function refreshOverview() {
+            const pub    = getPublicScripts();
+            const hosted = getHostedScripts();
+            const pubTotal    = HARDCODED_COUNT + pub.length;
+            const hostedTotal = hosted.length;
+
+            // Stat cards
+            animateCount('ov-public-count',  pubTotal);
+            animateCount('ov-hosted-count',  hostedTotal);
+            animateCount('ov-total-count',   pubTotal + hostedTotal);
+
+            // Sidebar badges
+            const pBadge = document.getElementById('public-count-badge');
+            const hBadge = document.getElementById('hosted-count-badge');
+            if (pBadge) pBadge.textContent = pubTotal;
+            if (hBadge) hBadge.textContent = hostedTotal;
+
+            // Recent public list — show hardcoded first, then user uploaded
+            const allPublic = [
+                ...HARDCODED_SCRIPTS,
+                ...pub.map(s => ({ name: s.name || 'Unnamed', tags: s.tags || [] }))
+            ];
+            const pList = document.getElementById('ov-public-list');
+            if (pList) {
+                pList.innerHTML = allPublic.slice(-5).reverse().map(s => `
+                    <div class="dash-recent-item">
+                        <div class="dash-recent-dot"></div>
+                        <span class="dash-recent-name">${escHtml(s.name)}</span>
+                        <span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">${s.tags && s.tags[0] ? escHtml(s.tags[0]) : 'Public'}</span>
+                    </div>`).join('');
+            }
+
+            // Recent hosted list
+            const hList = document.getElementById('ov-hosted-list');
+            if (hList) {
+                if (hosted.length === 0) {
+                    hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>';
+                } else {
+                    hList.innerHTML = hosted.slice(-5).reverse().map(s => `
+                        <div class="dash-recent-item">
+                            <div class="dash-recent-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                            <span class="dash-recent-name">${escHtml(s.label || 'Unnamed')}</span>
+                            <span class="dash-recent-time" style="color:var(--green);font-size:0.7rem;">Hosted</span>
+                        </div>`).join('');
+                }
+            }
+        }
+
+        // ── Animated count-up ─────────────────────────────────────────────
+        function animateCount(id, target) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const start = parseInt(el.textContent) || 0;
+            if (start === target) { el.textContent = target; return; }
+            const duration = 600;
+            const startTime = performance.now();
+            function step(now) {
+                const p = Math.min((now - startTime) / duration, 1);
+                const ease = 1 - Math.pow(1 - p, 3);
+                el.textContent = Math.round(start + (target - start) * ease);
+                if (p < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+
+        // ── Public scripts list tab ───────────────────────────────────────
+        function renderPublicList() {
+            const container = document.getElementById('us-scripts-list');
+            if (!container) return;
+            const uploaded = getPublicScripts();
+            const allPublic = [
+                ...HARDCODED_SCRIPTS.map(s => ({ ...s, hardcoded: true })),
+                ...uploaded.map(s => ({ name: s.name || 'Unnamed', tags: (s.tags||'').split(',').map(t=>t.trim()).filter(Boolean), hardcoded: false, raw: s }))
+            ];
+
+            if (allPublic.length === 0) {
+                container.innerHTML = '<p class="dash-empty">No scripts yet.</p>';
+                return;
+            }
+            container.innerHTML = allPublic.map((s, i) => `
+                <div class="dash-script-row">
+                    <div class="dash-script-row-left">
+                        <div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>
+                        <div class="dash-script-row-info">
+                            <div class="dash-script-row-name">${escHtml(s.name)}</div>
+                            <div class="dash-script-row-meta">
+                                ${s.tags.slice(0,3).map(t=>`<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">${escHtml(t)}</span>`).join('')}
+                                ${s.hardcoded ? '<span style="color:var(--muted);font-size:0.7rem;margin-left:0.3rem;">· built-in</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dash-script-row-actions">
+                        ${!s.hardcoded ? `<button class="dash-icon-btn danger" title="Delete" onclick="dashDeletePublic(${i - HARDCODED_COUNT})"><i class="fa-solid fa-trash"></i></button>` : '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>'}
+                    </div>
+                </div>`).join('');
+        }
+
+        window.dashDeletePublic = function(idx) {
+            if (!confirm('Delete this script?')) return;
+            const arr = getPublicScripts();
+            arr.splice(idx, 1);
+            localStorage.setItem('userScripts', JSON.stringify(arr));
+            renderPublicList();
+            refreshOverview();
+            // Re-render the public scripts page if visible
+            if (typeof window.renderUserScripts === 'function') window.renderUserScripts();
+        };
+
+        // ── Hosted scripts list tab ───────────────────────────────────────
+        function renderHostedList() {
+            const container = document.getElementById('hosted-scripts-list');
+            if (!container) return;
+            const hosted = getHostedScripts();
+            const noMsg = document.getElementById('no-scripts-msg');
+
+            if (hosted.length === 0) {
+                container.innerHTML = '<p class="dash-empty" id="no-scripts-msg">No hosted scripts yet.</p>';
+                return;
+            }
+            container.innerHTML = hosted.map((s, i) => `
+                <div class="dash-script-row" id="hosted-row-${i}">
+                    <div class="dash-script-row-left">
+                        <div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);">
+                            <i class="fa-solid fa-server"></i>
+                        </div>
+                        <div class="dash-script-row-info">
+                            <div class="dash-script-row-name">${escHtml(s.label || 'Unnamed')}</div>
+                            <div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">
+                                ${escHtml(s.url || '')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dash-script-row-actions">
+                        <button class="dash-icon-btn" title="Copy URL" onclick="dashCopyHostedUrl(${i})"><i class="fa-solid fa-link"></i></button>
+                        <button class="dash-icon-btn" title="Copy loadstring" onclick="dashCopyHostedLs(${i})"><i class="fa-solid fa-code"></i></button>
+                        <button class="dash-icon-btn danger" title="Delete" onclick="dashDeleteHosted(${i})"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>`).join('');
+        }
+
+        window.dashCopyHostedUrl = function(i) {
+            const s = getHostedScripts()[i];
+            if (s && s.url) { navigator.clipboard.writeText(s.url).catch(()=>{}); flashBtn(i,'url'); }
+        };
+        window.dashCopyHostedLs = function(i) {
+            const s = getHostedScripts()[i];
+            if (s && s.url) {
+                const ls = `loadstring(game:HttpGet("${s.url}"))()`;
+                navigator.clipboard.writeText(ls).catch(()=>{});
+                flashBtn(i,'ls');
+            }
+        };
+        function flashBtn(i, type) {
+            const row = document.getElementById('hosted-row-' + i);
+            if (!row) return;
+            const btns = row.querySelectorAll('.dash-icon-btn');
+            const idx = type === 'url' ? 0 : 1;
+            if (btns[idx]) {
+                btns[idx].style.borderColor = 'var(--green)';
+                btns[idx].style.color = 'var(--green)';
+                setTimeout(() => { btns[idx].style.borderColor = ''; btns[idx].style.color = ''; }, 1000);
+            }
+        }
+        window.dashDeleteHosted = function(i) {
+            if (!confirm('Delete this hosted script? This cannot be undone.')) return;
+            const arr = getHostedScripts();
+            arr.splice(i, 1);
+            localStorage.setItem('hostedScripts', JSON.stringify(arr));
+            renderHostedList();
+            refreshOverview();
+        };
+
+        // ── Utilities ─────────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── Clock ─────────────────────────────────────────────────────────
+        function updateClock() {
+            const el = document.getElementById('dash-clock');
+            if (!el) return;
+            const now = new Date();
+            el.textContent = String(now.getHours()).padStart(2,'0') + ':' +
+                             String(now.getMinutes()).padStart(2,'0') + ':' +
+                             String(now.getSeconds()).padStart(2,'0');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ── Wire nav items ────────────────────────────────────────────────
+        function wireNavItems() {
+            document.querySelectorAll('[data-tab]').forEach(el => {
+                // Remove old listeners by cloning
+                const clone = el.cloneNode(true);
+                el.parentNode.replaceChild(clone, el);
+            });
+            document.querySelectorAll('[data-tab]').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    switchTab(this.getAttribute('data-tab'));
+                });
+            });
+        }
+
+        // ── Login ─────────────────────────────────────────────────────────
+        function wireLogin() {
+            const loginBtn = document.getElementById('admin-login-btn');
+            const pwInput  = document.getElementById('admin-password-input');
+            const gate     = document.getElementById('dashboard-gate');
+            const panel    = document.getElementById('admin-panel');
+            const errorEl  = document.getElementById('admin-login-error');
+            if (!loginBtn) return;
+
+            function tryLogin() {
+                const pw = pwInput ? pwInput.value : '';
+                const ADMIN_PASSWORD = typeof FLURS_ADMIN_PW !== 'undefined' ? FLURS_ADMIN_PW : 'admin';
+                if (pw === ADMIN_PASSWORD) {
+                    if (gate)  gate.style.display  = 'none';
+                    if (panel) panel.style.display = 'flex';
+                    wireNavItems();
+                    refreshOverview();
+                    document.dispatchEvent(new Event('dashboardUnlocked'));
+                } else {
+                    if (errorEl) errorEl.style.display = 'flex';
+                    if (pwInput) { pwInput.classList.add('shake'); setTimeout(() => pwInput.classList.remove('shake'), 500); }
+                }
+            }
+
+            loginBtn.addEventListener('click', tryLogin);
+            if (pwInput) pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+        }
+
+        // ── Logout ────────────────────────────────────────────────────────
+        function wireLogout() {
+            document.addEventListener('click', function(e) {
+                if (e.target && (e.target.id === 'dash-logout-btn' || e.target.closest('#dash-logout-btn'))) {
+                    const gate  = document.getElementById('dashboard-gate');
+                    const panel = document.getElementById('admin-panel');
+                    if (gate)  gate.style.display  = 'flex';
+                    if (panel) panel.style.display = 'none';
+                    const pwInput = document.getElementById('admin-password-input');
+                    if (pwInput) pwInput.value = '';
+                }
+            });
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────
+        function init() {
+            wireLogin();
+            wireLogout();
+            wireNavItems();
+            if (window.location.hash === '#uploadscript') {
+                history.replaceState(null, '', '#admin');
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else { init(); }
+
+    })();
+    </script>
+
 </body>
 </html>
