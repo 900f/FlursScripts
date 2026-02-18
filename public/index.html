@@ -818,14 +818,18 @@
                             </div>
                             <div class="dash-card" style="margin-top:0;">
                                 <div class="dash-card-header" style="padding-bottom:0.75rem;">
-                                    <h3 style="font-size:0.9rem;"><i class="fa-solid fa-code" style="color:var(--accent2);margin-right:0.4rem;"></i>Loader Snippet — paste this into your public loadstring</h3>
+                                    <h3 style="font-size:0.9rem;"><i class="fa-solid fa-share-nodes" style="color:var(--green);margin-right:0.4rem;"></i>What users run — give them this</h3>
                                 </div>
-                                <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">Users run this. It asks for their key, sends it to your API, and executes the protected script only if the key is valid.</p>
-                                <div class="script-code-container">
-                                    <code class="script-code" id="ks-loader-snippet" style="white-space:pre;font-size:0.72rem;line-height:1.6;"></code>
-                                    <button class="copy-btn" id="ks-copy-snippet-btn" style="align-self:flex-start;margin-top:0.25rem;">Copy</button>
+                                <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">User replaces <code style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;">YOUR-KEY</code> with their key. Without a valid key it errors immediately — nothing runs.</p>
+                                <div class="script-code-container" style="align-items:center;">
+                                    <code class="script-code" id="ks-loader-snippet" style="white-space:pre;font-size:0.78rem;"></code>
+                                    <button class="copy-btn" id="ks-copy-snippet-btn">Copy</button>
                                 </div>
-                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;"><i class="fa-solid fa-circle-info" style="color:var(--accent2);margin-right:0.3rem;"></i>The script hash is <code id="ks-result-hash" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;"></code> — use this when generating keys.</p>
+                                <div style="margin-top:1.25rem;padding:0.875rem 1rem;background:rgba(124,109,250,0.05);border:1px solid rgba(124,109,250,0.15);border-radius:10px;display:flex;gap:0.75rem;align-items:flex-start;">
+                                    <i class="fa-solid fa-circle-info" style="color:var(--accent2);margin-top:0.1rem;flex-shrink:0;font-size:0.85rem;"></i>
+                                    <p style="font-size:0.78rem;color:var(--muted);margin:0;">Deploy <code style="color:var(--accent2);">api/files/v3/loader.js</code> to your Vercel project. The loader URL above will return the protected script only after the key is validated server-side.</p>
+                                </div>
+                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.875rem;"><i class="fa-solid fa-fingerprint" style="color:var(--accent2);margin-right:0.3rem;"></i>Script hash: <code id="ks-result-hash" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.72rem;"></code></p>
                             </div>
                         </div>
                     </div>
@@ -1173,60 +1177,37 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `-- Flurs Key Loader
--- Set your key before running: getgenv().FLURS_KEY = "FLURS-XXXX-XXXX-XXXX-XXXX"
+            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loaders/${hash}.lua"))()`;
+        }
 
-local scriptHash = "${hash}"
-local API        = "https://flurs.xyz/api/keys"
+        function getLoaderFile(hash) {
+            // The Lua that actually runs when HttpGet hits v3/loader/HASH.lua
+            // v3 loader reads the key from X-Flurs-Key header
+            return `-- Flurs v3 Loader
+-- Do NOT share this URL without a key — it will just return an error.
+-- Usage: FLURS_KEY="YOUR-KEY"; loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua"))()
 
--- ── Key check ─────────────────────────────────────────────────────────
 local key = (getgenv and getgenv().FLURS_KEY) or (genv and genv().FLURS_KEY)
 if not key or key == "" then
-    error("[Flurs] No key set. Do: getgenv().FLURS_KEY = \\"YOUR-KEY\\" then re-run.", 0)
+    error("[Flurs] No key provided. Set FLURS_KEY before running.", 0)
 end
 
--- ── HWID ──────────────────────────────────────────────────────────────
 local ok_hwid, hwid = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
 end)
-hwid = ok_hwid and hwid or "unknown"
 
--- ── Validate with API ─────────────────────────────────────────────────
-local hs = game:GetService("HttpService")
-local body = hs:JSONEncode({
-    action     = "validate",
-    key        = key,
-    hwid       = hwid,
-    scriptHash = scriptHash,
-})
-
-local ok, response = pcall(function()
-    return hs:PostAsync(API, body, Enum.HttpContentType.ApplicationJson, false)
+local ok, result = pcall(function()
+    return game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true, {
+        ["X-Flurs-Key"]  = key,
+        ["X-Flurs-Hwid"] = ok_hwid and hwid or "unknown",
+    })
 end)
 
-if not ok then
-    error("[Flurs] Could not reach key server. Check your internet or try again.", 0)
-end
+if not ok then error("[Flurs] Could not reach server.", 0) end
+if result:sub(1,5) == "error" then loadstring(result)() return end
 
-local data
-ok, data = pcall(function() return hs:JSONDecode(response) end)
-if not ok or type(data) ~= "table" then
-    error("[Flurs] Invalid response from key server.", 0)
-end
-
-if not data.ok then
-    error("[Flurs] Access denied: " .. tostring(data.error or "unknown reason"), 0)
-end
-
-if not data.content or data.content == "" then
-    error("[Flurs] Server returned empty script.", 0)
-end
-
--- ── Execute protected script ───────────────────────────────────────────
-local fn, loadErr = loadstring(data.content)
-if not fn then
-    error("[Flurs] Script failed to load: " .. tostring(loadErr), 0)
-end
+local fn, err = loadstring(result)
+if not fn then error("[Flurs] " .. tostring(err), 0) end
 fn()`;
         }
 
