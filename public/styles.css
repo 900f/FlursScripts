@@ -1630,3 +1630,9 @@ body {
     80% { transform: translateX(4px); }
 }
 .shake { animation: shake 0.4s ease; }
+
+/* Hide sidebar when dashboard panel is not shown */
+#admin-panel[style*="display:none"] .dash-sidebar,
+#admin-panel[style*="display: none"] .dash-sidebar {
+    display: none !important;
+}

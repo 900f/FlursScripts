@@ -278,7 +278,7 @@
     <section id="admin-page" class="page dash-page-override">
 
         <!-- LOGIN GATE -->
-        <div id="dashboard-gate" class="dash-gate" style="display:none;">
+        <div id="admin-gate" class="dash-gate" style="display:none;">
             <div class="dash-login-card">
                 <div class="dash-login-icon"><i class="fa-solid fa-terminal"></i></div>
                 <h2>Flurs Admin</h2>
@@ -593,28 +593,24 @@
 
         // Hardcoded scripts baked into the page
         const HARDCODED_SCRIPTS = [
-            { name: 'Soluna Arsenal',          tags: ['Soluna','Arsenal'] },
-            { name: 'Weed Client',             tags: ['Arsenal','Universal','Rivals'] },
-            { name: 'Argon Cheat - Blade Ball',tags: ['Blade Ball','Argon'] },
-            { name: 'Plutonium Cheat',         tags: ['Cheat','Hub','Blade Ball'] },
-            { name: 'Thunder Hub',             tags: ['MM2','Murder Mystery'] },
-            { name: 'TALENTLESS',              tags: ['Piano','TALENTLESS','Auto Play'] },
-            { name: 'Fisch Eclipse',           tags: ['Fisch','Eclipse','Auto Play'] },
-            { name: 'Strucid Cheats',          tags: ['Strucid','Hitboxes','Cheats'] },
-            { name: 'Soluna Rivals',           tags: ['Rivals','Aimbot','Cheats'] },
+            { name: 'Soluna Arsenal',           tags: ['Soluna','Arsenal'] },
+            { name: 'Weed Client',              tags: ['Arsenal','Universal','Rivals'] },
+            { name: 'Argon Cheat - Blade Ball', tags: ['Blade Ball','Argon'] },
+            { name: 'Plutonium Cheat',          tags: ['Cheat','Hub','Blade Ball'] },
+            { name: 'Thunder Hub',              tags: ['MM2','Murder Mystery'] },
+            { name: 'TALENTLESS',               tags: ['Piano','TALENTLESS','Auto Play'] },
+            { name: 'Fisch Eclipse',            tags: ['Fisch','Eclipse','Auto Play'] },
+            { name: 'Strucid Cheats',           tags: ['Strucid','Hitboxes','Cheats'] },
+            { name: 'Soluna Rivals',            tags: ['Rivals','Aimbot','Cheats'] },
         ];
-        const HARDCODED_COUNT = HARDCODED_SCRIPTS.length; // 9
+        const HARDCODED_COUNT = HARDCODED_SCRIPTS.length;
 
-        // ── Helpers ──────────────────────────────────────────────────────
-        function getPublicScripts() {
-            try { return JSON.parse(localStorage.getItem('userScripts') || '[]'); } catch(e) { return []; }
+        // ── Data helpers ──────────────────────────────────────────────────
+        function getPublicScripts()  { try { return JSON.parse(localStorage.getItem('userScripts')  || '[]'); } catch(e) { return []; } }
+        function getHostedScripts()  { try { return JSON.parse(localStorage.getItem('hostedScripts') || '[]'); } catch(e) { return []; } }
+        function escHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
-        function getHostedScripts() {
-            try { return JSON.parse(localStorage.getItem('hostedScripts') || '[]'); } catch(e) { return []; }
-        }
-        function totalPublic() { return HARDCODED_COUNT + getPublicScripts().length; }
-        function totalHosted() { return getHostedScripts().length; }
-        function totalScripts() { return totalPublic() + totalHosted(); }
 
         // ── Tab navigation ────────────────────────────────────────────────
         function switchTab(tabName) {
@@ -623,13 +619,7 @@
             const tab = document.getElementById('tab-' + tabName);
             if (tab) tab.classList.add('active');
             document.querySelectorAll('.dash-nav-item[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
-            const labels = {
-                'overview':       'Overview',
-                'public-scripts': 'Public Scripts',
-                'host-scripts':   'Hosted Scripts',
-                'add-public':     'Add Public Script',
-                'add-hosted':     'Upload & Host'
-            };
+            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host' };
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
             if (tabName === 'overview')       refreshOverview();
@@ -644,58 +634,49 @@
             const pubTotal    = HARDCODED_COUNT + pub.length;
             const hostedTotal = hosted.length;
 
-            // Stat cards
             animateCount('ov-public-count',  pubTotal);
             animateCount('ov-hosted-count',  hostedTotal);
             animateCount('ov-total-count',   pubTotal + hostedTotal);
 
-            // Sidebar badges
             const pBadge = document.getElementById('public-count-badge');
             const hBadge = document.getElementById('hosted-count-badge');
             if (pBadge) pBadge.textContent = pubTotal;
             if (hBadge) hBadge.textContent = hostedTotal;
 
-            // Recent public list — show hardcoded first, then user uploaded
             const allPublic = [
                 ...HARDCODED_SCRIPTS,
-                ...pub.map(s => ({ name: s.name || 'Unnamed', tags: s.tags || [] }))
+                ...pub.map(s => ({ name: s.name || 'Unnamed', tags: (s.tags||[]) }))
             ];
             const pList = document.getElementById('ov-public-list');
             if (pList) {
-                pList.innerHTML = allPublic.slice(-5).reverse().map(s => `
-                    <div class="dash-recent-item">
-                        <div class="dash-recent-dot"></div>
-                        <span class="dash-recent-name">${escHtml(s.name)}</span>
-                        <span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">${s.tags && s.tags[0] ? escHtml(s.tags[0]) : 'Public'}</span>
-                    </div>`).join('');
+                pList.innerHTML = allPublic.slice(-5).reverse().map(s =>
+                    '<div class="dash-recent-item"><div class="dash-recent-dot"></div>' +
+                    '<span class="dash-recent-name">' + escHtml(s.name) + '</span>' +
+                    '<span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">' + escHtml((s.tags&&s.tags[0])||'Public') + '</span></div>'
+                ).join('');
             }
 
-            // Recent hosted list
             const hList = document.getElementById('ov-hosted-list');
             if (hList) {
-                if (hosted.length === 0) {
-                    hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>';
-                } else {
-                    hList.innerHTML = hosted.slice(-5).reverse().map(s => `
-                        <div class="dash-recent-item">
-                            <div class="dash-recent-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
-                            <span class="dash-recent-name">${escHtml(s.label || 'Unnamed')}</span>
-                            <span class="dash-recent-time" style="color:var(--green);font-size:0.7rem;">Hosted</span>
-                        </div>`).join('');
+                if (hosted.length === 0) { hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>'; }
+                else {
+                    hList.innerHTML = hosted.slice(-5).reverse().map(s =>
+                        '<div class="dash-recent-item"><div class="dash-recent-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>' +
+                        '<span class="dash-recent-name">' + escHtml(s.label||'Unnamed') + '</span>' +
+                        '<span class="dash-recent-time" style="color:var(--green);font-size:0.7rem;">Hosted</span></div>'
+                    ).join('');
                 }
             }
         }
 
-        // ── Animated count-up ─────────────────────────────────────────────
         function animateCount(id, target) {
             const el = document.getElementById(id);
             if (!el) return;
             const start = parseInt(el.textContent) || 0;
             if (start === target) { el.textContent = target; return; }
-            const duration = 600;
             const startTime = performance.now();
             function step(now) {
-                const p = Math.min((now - startTime) / duration, 1);
+                const p = Math.min((now - startTime) / 600, 1);
                 const ease = 1 - Math.pow(1 - p, 3);
                 el.textContent = Math.round(start + (target - start) * ease);
                 if (p < 1) requestAnimationFrame(step);
@@ -703,195 +684,182 @@
             requestAnimationFrame(step);
         }
 
-        // ── Public scripts list tab ───────────────────────────────────────
+        // ── Public scripts list ───────────────────────────────────────────
         function renderPublicList() {
             const container = document.getElementById('us-scripts-list');
             if (!container) return;
-            const uploaded = getPublicScripts();
+            const uploaded  = getPublicScripts();
             const allPublic = [
                 ...HARDCODED_SCRIPTS.map(s => ({ ...s, hardcoded: true })),
-                ...uploaded.map(s => ({ name: s.name || 'Unnamed', tags: (s.tags||'').split(',').map(t=>t.trim()).filter(Boolean), hardcoded: false, raw: s }))
+                ...uploaded.map((s,i) => ({ name: s.name||'Unnamed', tags: Array.isArray(s.tags)?s.tags:(s.tags||'').split(',').map(t=>t.trim()).filter(Boolean), hardcoded: false, idx: i }))
             ];
-
-            if (allPublic.length === 0) {
-                container.innerHTML = '<p class="dash-empty">No scripts yet.</p>';
-                return;
-            }
-            container.innerHTML = allPublic.map((s, i) => `
-                <div class="dash-script-row">
-                    <div class="dash-script-row-left">
-                        <div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>
-                        <div class="dash-script-row-info">
-                            <div class="dash-script-row-name">${escHtml(s.name)}</div>
-                            <div class="dash-script-row-meta">
-                                ${s.tags.slice(0,3).map(t=>`<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">${escHtml(t)}</span>`).join('')}
-                                ${s.hardcoded ? '<span style="color:var(--muted);font-size:0.7rem;margin-left:0.3rem;">· built-in</span>' : ''}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="dash-script-row-actions">
-                        ${!s.hardcoded ? `<button class="dash-icon-btn danger" title="Delete" onclick="dashDeletePublic(${i - HARDCODED_COUNT})"><i class="fa-solid fa-trash"></i></button>` : '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>'}
-                    </div>
-                </div>`).join('');
+            if (allPublic.length === 0) { container.innerHTML = '<p class="dash-empty">No scripts yet.</p>'; return; }
+            container.innerHTML = allPublic.map(s =>
+                '<div class="dash-script-row">' +
+                    '<div class="dash-script-row-left">' +
+                        '<div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>' +
+                        '<div class="dash-script-row-info">' +
+                            '<div class="dash-script-row-name">' + escHtml(s.name) + '</div>' +
+                            '<div class="dash-script-row-meta">' +
+                                s.tags.slice(0,3).map(t=>'<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">'+escHtml(t)+'</span>').join('') +
+                                (s.hardcoded ? '<span style="color:var(--muted);font-size:0.7rem;margin-left:0.3rem;">· built-in</span>' : '') +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="dash-script-row-actions">' +
+                        (!s.hardcoded ? '<button class="dash-icon-btn danger" title="Delete" onclick="dashDeletePublic('+s.idx+')"><i class="fa-solid fa-trash"></i></button>' : '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>') +
+                    '</div>' +
+                '</div>'
+            ).join('');
         }
 
         window.dashDeletePublic = function(idx) {
             if (!confirm('Delete this script?')) return;
-            const arr = getPublicScripts();
-            arr.splice(idx, 1);
+            const arr = getPublicScripts(); arr.splice(idx, 1);
             localStorage.setItem('userScripts', JSON.stringify(arr));
-            renderPublicList();
-            refreshOverview();
-            // Re-render the public scripts page if visible
-            if (typeof window.renderUserScripts === 'function') window.renderUserScripts();
+            renderPublicList(); refreshOverview();
         };
 
-        // ── Hosted scripts list tab ───────────────────────────────────────
+        // ── Hosted scripts list ───────────────────────────────────────────
         function renderHostedList() {
             const container = document.getElementById('hosted-scripts-list');
             if (!container) return;
             const hosted = getHostedScripts();
-            const noMsg = document.getElementById('no-scripts-msg');
-
-            if (hosted.length === 0) {
-                container.innerHTML = '<p class="dash-empty" id="no-scripts-msg">No hosted scripts yet.</p>';
-                return;
-            }
-            container.innerHTML = hosted.map((s, i) => `
-                <div class="dash-script-row" id="hosted-row-${i}">
-                    <div class="dash-script-row-left">
-                        <div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);">
-                            <i class="fa-solid fa-server"></i>
-                        </div>
-                        <div class="dash-script-row-info">
-                            <div class="dash-script-row-name">${escHtml(s.label || 'Unnamed')}</div>
-                            <div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">
-                                ${escHtml(s.url || '')}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="dash-script-row-actions">
-                        <button class="dash-icon-btn" title="Copy URL" onclick="dashCopyHostedUrl(${i})"><i class="fa-solid fa-link"></i></button>
-                        <button class="dash-icon-btn" title="Copy loadstring" onclick="dashCopyHostedLs(${i})"><i class="fa-solid fa-code"></i></button>
-                        <button class="dash-icon-btn danger" title="Delete" onclick="dashDeleteHosted(${i})"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                </div>`).join('');
+            if (hosted.length === 0) { container.innerHTML = '<p class="dash-empty" id="no-scripts-msg">No hosted scripts yet.</p>'; return; }
+            container.innerHTML = hosted.map((s,i) =>
+                '<div class="dash-script-row" id="hosted-row-'+i+'">' +
+                    '<div class="dash-script-row-left">' +
+                        '<div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);"><i class="fa-solid fa-server"></i></div>' +
+                        '<div class="dash-script-row-info">' +
+                            '<div class="dash-script-row-name">' + escHtml(s.label||'Unnamed') + '</div>' +
+                            '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">' + escHtml(s.url||s.hash||'') + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="dash-script-row-actions">' +
+                        '<button class="dash-icon-btn" title="Copy URL" onclick="dashCopyHostedUrl('+i+')"><i class="fa-solid fa-link"></i></button>' +
+                        '<button class="dash-icon-btn" title="Copy loadstring" onclick="dashCopyHostedLs('+i+')"><i class="fa-solid fa-code"></i></button>' +
+                        '<button class="dash-icon-btn danger" title="Delete" onclick="dashDeleteHosted('+i+')"><i class="fa-solid fa-trash"></i></button>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
         }
 
         window.dashCopyHostedUrl = function(i) {
-            const s = getHostedScripts()[i];
-            if (s && s.url) { navigator.clipboard.writeText(s.url).catch(()=>{}); flashBtn(i,'url'); }
+            const s = getHostedScripts()[i]; if (!s) return;
+            const url = s.url || (s.hash ? ('https://api.flurs.xyz/files/v2/loader/'+s.hash+'.lua') : '');
+            navigator.clipboard.writeText(url).catch(()=>{}); flashBtn(i,0);
         };
         window.dashCopyHostedLs = function(i) {
-            const s = getHostedScripts()[i];
-            if (s && s.url) {
-                const ls = `loadstring(game:HttpGet("${s.url}"))()`;
-                navigator.clipboard.writeText(ls).catch(()=>{});
-                flashBtn(i,'ls');
-            }
+            const s = getHostedScripts()[i]; if (!s) return;
+            const url = s.url || (s.hash ? ('https://api.flurs.xyz/files/v2/loader/'+s.hash+'.lua') : '');
+            navigator.clipboard.writeText('loadstring(game:HttpGet("'+url+'", true))()').catch(()=>{}); flashBtn(i,1);
         };
-        function flashBtn(i, type) {
-            const row = document.getElementById('hosted-row-' + i);
+        function flashBtn(i, btnIdx) {
+            const row = document.getElementById('hosted-row-'+i);
             if (!row) return;
             const btns = row.querySelectorAll('.dash-icon-btn');
-            const idx = type === 'url' ? 0 : 1;
-            if (btns[idx]) {
-                btns[idx].style.borderColor = 'var(--green)';
-                btns[idx].style.color = 'var(--green)';
-                setTimeout(() => { btns[idx].style.borderColor = ''; btns[idx].style.color = ''; }, 1000);
+            if (btns[btnIdx]) {
+                btns[btnIdx].style.borderColor='var(--green)'; btns[btnIdx].style.color='var(--green)';
+                setTimeout(()=>{ btns[btnIdx].style.borderColor=''; btns[btnIdx].style.color=''; },1000);
             }
         }
         window.dashDeleteHosted = function(i) {
-            if (!confirm('Delete this hosted script? This cannot be undone.')) return;
-            const arr = getHostedScripts();
-            arr.splice(i, 1);
+            if (!confirm('Delete this hosted script?')) return;
+            const arr = getHostedScripts(); arr.splice(i,1);
             localStorage.setItem('hostedScripts', JSON.stringify(arr));
-            renderHostedList();
-            refreshOverview();
+            renderHostedList(); refreshOverview();
         };
-
-        // ── Utilities ─────────────────────────────────────────────────────
-        function escHtml(str) {
-            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
 
         // ── Clock ─────────────────────────────────────────────────────────
         function updateClock() {
             const el = document.getElementById('dash-clock');
             if (!el) return;
-            const now = new Date();
-            el.textContent = String(now.getHours()).padStart(2,'0') + ':' +
-                             String(now.getMinutes()).padStart(2,'0') + ':' +
-                             String(now.getSeconds()).padStart(2,'0');
+            const n = new Date();
+            el.textContent = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
         }
-        setInterval(updateClock, 1000);
-        updateClock();
+        setInterval(updateClock, 1000); updateClock();
 
-        // ── Wire nav items ────────────────────────────────────────────────
+        // ── Wire nav/tab buttons ──────────────────────────────────────────
         function wireNavItems() {
             document.querySelectorAll('[data-tab]').forEach(el => {
-                // Remove old listeners by cloning
                 const clone = el.cloneNode(true);
                 el.parentNode.replaceChild(clone, el);
             });
             document.querySelectorAll('[data-tab]').forEach(el => {
                 el.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    switchTab(this.getAttribute('data-tab'));
+                    e.preventDefault(); switchTab(this.getAttribute('data-tab'));
                 });
             });
         }
 
-        // ── Login ─────────────────────────────────────────────────────────
-        function wireLogin() {
-            const loginBtn = document.getElementById('admin-login-btn');
-            const pwInput  = document.getElementById('admin-password-input');
-            const gate     = document.getElementById('dashboard-gate');
-            const panel    = document.getElementById('admin-panel');
-            const errorEl  = document.getElementById('admin-login-error');
-            if (!loginBtn) return;
+        // ── Called once script.js has unlocked the panel ──────────────────
+        function onDashboardUnlocked() {
+            const gate  = document.getElementById('admin-gate');
+            const panel = document.getElementById('admin-panel');
+            const sb    = document.querySelector('.dash-sidebar');
+            if (gate)  gate.style.display  = 'none';
+            if (panel) { panel.style.display = 'flex'; panel.style.flexDirection = 'row'; }
+            if (sb)    sb.style.display    = 'flex';
 
-            function tryLogin() {
-                const pw = pwInput ? pwInput.value : '';
-                const ADMIN_PASSWORD = typeof FLURS_ADMIN_PW !== 'undefined' ? FLURS_ADMIN_PW : 'admin';
-                if (pw === ADMIN_PASSWORD) {
-                    if (gate)  gate.style.display  = 'none';
-                    if (panel) panel.style.display = 'flex';
-                    wireNavItems();
-                    refreshOverview();
-                    document.dispatchEvent(new Event('dashboardUnlocked'));
-                } else {
-                    if (errorEl) errorEl.style.display = 'flex';
-                    if (pwInput) { pwInput.classList.add('shake'); setTimeout(() => pwInput.classList.remove('shake'), 500); }
-                }
-            }
+            // Remove any logout btn script.js injected (we have our own)
+            const oldLogout = document.getElementById('admin-logout-btn');
+            if (oldLogout) oldLogout.remove();
 
-            loginBtn.addEventListener('click', tryLogin);
-            if (pwInput) pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+            wireNavItems();
+            refreshOverview();
         }
 
-        // ── Logout ────────────────────────────────────────────────────────
-        function wireLogout() {
+        // ── Our logout button ─────────────────────────────────────────────
+        function wireOurLogout() {
             document.addEventListener('click', function(e) {
-                if (e.target && (e.target.id === 'dash-logout-btn' || e.target.closest('#dash-logout-btn'))) {
-                    const gate  = document.getElementById('dashboard-gate');
-                    const panel = document.getElementById('admin-panel');
-                    if (gate)  gate.style.display  = 'flex';
-                    if (panel) panel.style.display = 'none';
-                    const pwInput = document.getElementById('admin-password-input');
-                    if (pwInput) pwInput.value = '';
-                }
+                const btn = e.target.closest('#dash-logout-btn');
+                if (!btn) return;
+                // Clear saved password same as script.js does
+                localStorage.removeItem('flurs_admin_pw');
+                const gate  = document.getElementById('admin-gate');
+                const panel = document.getElementById('admin-panel');
+                const sb    = document.querySelector('.dash-sidebar');
+                if (gate)  gate.style.display  = 'flex';
+                if (panel) panel.style.display = 'none';
+                if (sb)    sb.style.display    = 'none';
+                const pwInput = document.getElementById('admin-password-input');
+                if (pwInput) pwInput.value = '';
             });
+        }
+
+        // ── Watch admin-panel for script.js setting it visible ────────────
+        function watchForUnlock() {
+            const panel = document.getElementById('admin-panel');
+            if (!panel) return;
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(m) {
+                    if (m.type === 'attributes' && m.attributeName === 'style') {
+                        const vis = panel.style.display && panel.style.display !== 'none';
+                        if (vis) onDashboardUnlocked();
+                    }
+                });
+            });
+            observer.observe(panel, { attributes: true, attributeFilter: ['style'] });
         }
 
         // ── Init ──────────────────────────────────────────────────────────
         function init() {
-            wireLogin();
-            wireLogout();
+            wireOurLogout();
             wireNavItems();
-            // Show the gate by default when admin page loads
-            const gate = document.getElementById('dashboard-gate');
+            watchForUnlock();
+
+            // Hide sidebar until logged in
+            const sb   = document.querySelector('.dash-sidebar');
+            const gate = document.getElementById('admin-gate');
+            if (sb)   sb.style.display   = 'none';
             if (gate) gate.style.display = 'flex';
+
+            // If script.js already auto-unlocked (saved password), fire immediately
+            const panel = document.getElementById('admin-panel');
+            if (panel && panel.style.display && panel.style.display !== 'none') {
+                onDashboardUnlocked();
+            }
+
             if (window.location.hash === '#uploadscript') {
                 history.replaceState(null, '', '#admin');
             }
@@ -899,7 +867,7 @@
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', init);
-        } else { init(); }
+        } else { setTimeout(init, 0); }
 
     })();
     </script>
