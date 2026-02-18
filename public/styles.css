@@ -1636,3 +1636,13 @@ body {
 #admin-panel[style*="display: none"] .dash-sidebar {
     display: none !important;
 }
+
+/* Public script thumbnails in dashboard */
+.dash-pub-thumb {
+    width: 40px; height: 40px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.dash-pub-thumb.broken { display: none; }

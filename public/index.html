@@ -591,7 +591,6 @@
     /* ── UNIFIED ADMIN DASHBOARD CONTROLLER ──────────────────────────── */
     (function() {
 
-        // Hardcoded scripts baked into the page
         const HARDCODED_SCRIPTS = [
             { name: 'Soluna Arsenal',           tags: ['Soluna','Arsenal'] },
             { name: 'Weed Client',              tags: ['Arsenal','Universal','Rivals'] },
@@ -605,9 +604,34 @@
         ];
         const HARDCODED_COUNT = HARDCODED_SCRIPTS.length;
 
-        // ── Data helpers ──────────────────────────────────────────────────
-        function getPublicScripts()  { try { return JSON.parse(localStorage.getItem('userScripts')  || '[]'); } catch(e) { return []; } }
-        function getHostedScripts()  { try { return JSON.parse(localStorage.getItem('hostedScripts') || '[]'); } catch(e) { return []; } }
+        // ── API helpers ───────────────────────────────────────────────────
+        function getPw() { return localStorage.getItem('flurs_admin_pw') || ''; }
+
+        async function apiAdmin(payload) {
+            const r = await fetch('/api/admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...payload, password: getPw() }),
+            });
+            return r.json();
+        }
+
+        async function apiUploadscript(payload) {
+            const r = await fetch('/api/uploadscript', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            return r.json();
+        }
+
+        function getScriptUrl(hash) {
+            return 'https://api.flurs.xyz/files/v2/loader/' + hash + '.lua';
+        }
+        function getLoadstring(hash) {
+            return 'loadstring(game:HttpGet("' + getScriptUrl(hash) + '", true))()';
+        }
+
         function escHtml(str) {
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
@@ -618,170 +642,199 @@
             document.querySelectorAll('.dash-nav-item').forEach(n => n.classList.remove('active'));
             const tab = document.getElementById('tab-' + tabName);
             if (tab) tab.classList.add('active');
-            document.querySelectorAll('.dash-nav-item[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
+            document.querySelectorAll('[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
             const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host' };
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
             if (tabName === 'overview')       refreshOverview();
-            if (tabName === 'public-scripts') {
-                // script.js owns this - call its function to fetch from API
-                if (typeof renderUploadedScriptsList === 'function') renderUploadedScriptsList();
-            }
-            if (tabName === 'host-scripts')   renderHostedList();
+            if (tabName === 'public-scripts') renderPublicScripts();
+            if (tabName === 'host-scripts')   renderHostedScripts();
         }
 
-        // ── Overview ──────────────────────────────────────────────────────
-        function refreshOverview() {
-            const hosted = getHostedScripts();
-            const hostedTotal = hosted.length;
-
-            // Hosted side (localStorage-backed)
-            animateCount('ov-hosted-count', hostedTotal);
-            const hBadge = document.getElementById('hosted-count-badge');
-            if (hBadge) hBadge.textContent = hostedTotal;
-            const hList = document.getElementById('ov-hosted-list');
-            if (hList) {
-                if (hosted.length === 0) { hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>'; }
-                else {
-                    hList.innerHTML = hosted.slice(-5).reverse().map(s =>
-                        '<div class="dash-recent-item"><div class="dash-recent-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>' +
-                        '<span class="dash-recent-name">' + escHtml(s.label||'Unnamed') + '</span>' +
-                        '<span class="dash-recent-time" style="color:var(--green);font-size:0.7rem;">Hosted</span></div>'
-                    ).join('');
-                }
-            }
-
-            // Public side — fetch from API (same endpoint script.js uses)
-            fetch('/api/uploadscript', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'list' }),
-            }).then(r => r.json()).then(data => {
-                const dynScripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
-                const pubTotal = HARDCODED_COUNT + dynScripts.length;
-
-                animateCount('ov-public-count', pubTotal);
-                animateCount('ov-total-count',  pubTotal + hostedTotal);
-                const pBadge = document.getElementById('public-count-badge');
-                if (pBadge) pBadge.textContent = pubTotal;
-
-                const allPublic = [
-                    ...HARDCODED_SCRIPTS,
-                    ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: s.tags || [] }))
-                ];
-                const pList = document.getElementById('ov-public-list');
-                if (pList) {
-                    pList.innerHTML = allPublic.slice(-5).reverse().map(s =>
-                        '<div class="dash-recent-item"><div class="dash-recent-dot"></div>' +
-                        '<span class="dash-recent-name">' + escHtml(s.name) + '</span>' +
-                        '<span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">' + escHtml((s.tags && s.tags[0]) || 'Public') + '</span></div>'
-                    ).join('');
-                }
-            }).catch(() => {
-                animateCount('ov-public-count', HARDCODED_COUNT);
-                animateCount('ov-total-count',  HARDCODED_COUNT + hostedTotal);
-            });
-        }
-
+        // ── Animate count ─────────────────────────────────────────────────
         function animateCount(id, target) {
             const el = document.getElementById(id);
             if (!el) return;
             const start = parseInt(el.textContent) || 0;
             if (start === target) { el.textContent = target; return; }
-            const startTime = performance.now();
-            function step(now) {
-                const p = Math.min((now - startTime) / 600, 1);
-                const ease = 1 - Math.pow(1 - p, 3);
-                el.textContent = Math.round(start + (target - start) * ease);
+            const t0 = performance.now();
+            (function step(now) {
+                const p = Math.min((now - t0) / 600, 1);
+                el.textContent = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3)));
                 if (p < 1) requestAnimationFrame(step);
-            }
-            requestAnimationFrame(step);
+            })(t0);
         }
 
-        // ── Public scripts list ───────────────────────────────────────────
-        function renderPublicList() {
+        // ── Overview ──────────────────────────────────────────────────────
+        async function refreshOverview() {
+            // Public scripts (no auth)
+            const pubData = await apiUploadscript({ action: 'list' }).catch(() => ({}));
+            const dynScripts = (pubData.ok && Array.isArray(pubData.scripts)) ? pubData.scripts : [];
+            const pubTotal = HARDCODED_COUNT + dynScripts.length;
+            animateCount('ov-public-count', pubTotal);
+            const pBadge = document.getElementById('public-count-badge');
+            if (pBadge) pBadge.textContent = pubTotal;
+            const pList = document.getElementById('ov-public-list');
+            if (pList) {
+                const all = [...HARDCODED_SCRIPTS, ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: s.tags || [] }))];
+                pList.innerHTML = all.slice(-5).reverse().map(s =>
+                    '<div class="dash-recent-item">' +
+                    '<div class="dash-recent-dot"></div>' +
+                    '<span class="dash-recent-name">' + escHtml(s.name) + '</span>' +
+                    '<span class="dash-recent-time" style="color:var(--accent2);font-size:0.7rem;">' + escHtml((s.tags && s.tags[0]) || 'Public') + '</span>' +
+                    '</div>'
+                ).join('');
+            }
+
+            // Hosted scripts (needs auth via /api/admin)
+            const hostData = await apiAdmin({ action: 'list' }).catch(() => ({}));
+            const hostedScripts = (hostData.ok && Array.isArray(hostData.scripts)) ? hostData.scripts : [];
+            const hostedTotal = hostedScripts.length;
+            animateCount('ov-hosted-count', hostedTotal);
+            animateCount('ov-total-count', pubTotal + hostedTotal);
+            const hBadge = document.getElementById('hosted-count-badge');
+            if (hBadge) hBadge.textContent = hostedTotal;
+            const hList = document.getElementById('ov-hosted-list');
+            if (hList) {
+                if (!hostedScripts.length) {
+                    hList.innerHTML = '<p class="dash-empty">No hosted scripts yet.</p>';
+                } else {
+                    hList.innerHTML = hostedScripts.slice(-5).reverse().map(s =>
+                        '<div class="dash-recent-item">' +
+                        '<div class="dash-recent-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>' +
+                        '<span class="dash-recent-name">' + escHtml(s.label || 'Unnamed') + '</span>' +
+                        '<span class="dash-recent-time" style="color:var(--green);font-size:0.7rem;">Hosted</span>' +
+                        '</div>'
+                    ).join('');
+                }
+            }
+        }
+
+        // ── Public Scripts tab ────────────────────────────────────────────
+        async function renderPublicScripts() {
             const container = document.getElementById('us-scripts-list');
             if (!container) return;
-            const uploaded  = getPublicScripts();
+            container.innerHTML = '<p class="dash-empty">Loading…</p>';
+
+            const data = await apiUploadscript({ action: 'list' }).catch(() => ({}));
+            const dynScripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
+
             const allPublic = [
                 ...HARDCODED_SCRIPTS.map(s => ({ ...s, hardcoded: true })),
-                ...uploaded.map((s,i) => ({ name: s.name||'Unnamed', tags: Array.isArray(s.tags)?s.tags:(s.tags||'').split(',').map(t=>t.trim()).filter(Boolean), hardcoded: false, idx: i }))
+                ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: Array.isArray(s.tags) ? s.tags : [], hardcoded: false, id: s.id, imageUrl: s.imageUrl }))
             ];
-            if (allPublic.length === 0) { container.innerHTML = '<p class="dash-empty">No scripts yet.</p>'; return; }
-            container.innerHTML = allPublic.map(s =>
-                '<div class="dash-script-row">' +
-                    '<div class="dash-script-row-left">' +
-                        '<div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>' +
-                        '<div class="dash-script-row-info">' +
-                            '<div class="dash-script-row-name">' + escHtml(s.name) + '</div>' +
-                            '<div class="dash-script-row-meta">' +
-                                s.tags.slice(0,3).map(t=>'<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">'+escHtml(t)+'</span>').join('') +
-                                (s.hardcoded ? '<span style="color:var(--muted);font-size:0.7rem;margin-left:0.3rem;">· built-in</span>' : '') +
-                            '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="dash-script-row-actions">' +
-                        (!s.hardcoded ? '<button class="dash-icon-btn danger" title="Delete" onclick="dashDeletePublic('+s.idx+')"><i class="fa-solid fa-trash"></i></button>' : '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>') +
-                    '</div>' +
-                '</div>'
-            ).join('');
+
+            if (!allPublic.length) { container.innerHTML = '<p class="dash-empty">No scripts yet.</p>'; return; }
+
+            container.innerHTML = allPublic.map(function(s) {
+                var thumb = s.imageUrl
+                    ? '<img src="' + escHtml(s.imageUrl) + '" class="dash-pub-thumb">'
+                    : '<div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>';
+                var tagHtml = s.tags.slice(0, 3).map(function(t) {
+                    return '<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">' + escHtml(t) + '</span>';
+                }).join('');
+                var action = s.hardcoded
+                    ? '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>'
+                    : '<button class="dash-icon-btn danger" title="Delete" data-pub-id="' + escHtml(s.id) + '"><i class="fa-solid fa-trash"></i></button>';
+                return '<div class="dash-script-row">' +
+                    '<div class="dash-script-row-left">' + thumb +
+                    '<div class="dash-script-row-info">' +
+                    '<div class="dash-script-row-name">' + escHtml(s.name) + '</div>' +
+                    '<div class="dash-script-row-meta">' + tagHtml + (s.hardcoded ? '<span style="color:var(--muted);font-size:0.7rem;margin-left:0.3rem;">· built-in</span>' : '') + '</div>' +
+                    '</div></div>' +
+                    '<div class="dash-script-row-actions">' + action + '</div></div>';
+            }).join('');
+
+            // Wire delete buttons via event delegation (avoids inline onclick quoting issues)
+            container.querySelectorAll('[data-pub-id]').forEach(function(btn) {
+                btn.addEventListener('click', function() { window.dashDeletePublic(btn.getAttribute('data-pub-id')); });
+            });
+            // Hide broken images
+            container.querySelectorAll('.dash-pub-thumb').forEach(function(img) {
+                img.addEventListener('error', function() { img.classList.add('broken'); });
+            });
         }
 
-        window.dashDeletePublic = function(idx) {
-            if (!confirm('Delete this script?')) return;
-            const arr = getPublicScripts(); arr.splice(idx, 1);
-            localStorage.setItem('userScripts', JSON.stringify(arr));
-            renderPublicList(); refreshOverview();
+        window.dashDeletePublic = async function(id) {
+            if (!confirm('Delete this script from the public page?')) return;
+            const data = await apiUploadscript({ action: 'delete', id, password: getPw() }).catch(() => ({}));
+            if (data.ok) { renderPublicScripts(); refreshOverview(); }
+            else alert('Delete failed: ' + (data.error || 'unknown'));
         };
 
-        // ── Hosted scripts list ───────────────────────────────────────────
-        function renderHostedList() {
+        // ── Hosted Scripts tab ────────────────────────────────────────────
+        // Cache for copy buttons (so index-based copy still works after render)
+        let _hostedCache = [];
+
+        async function renderHostedScripts() {
             const container = document.getElementById('hosted-scripts-list');
             if (!container) return;
-            const hosted = getHostedScripts();
-            if (hosted.length === 0) { container.innerHTML = '<p class="dash-empty" id="no-scripts-msg">No hosted scripts yet.</p>'; return; }
-            container.innerHTML = hosted.map((s,i) =>
-                '<div class="dash-script-row" id="hosted-row-'+i+'">' +
+            container.innerHTML = '<p class="dash-empty">Loading…</p>';
+
+            const data = await apiAdmin({ action: 'list' }).catch(() => ({}));
+            const scripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
+            _hostedCache = scripts;
+
+            if (!scripts.length) {
+                container.innerHTML = '<p class="dash-empty" id="no-scripts-msg">No hosted scripts yet.</p>';
+                return;
+            }
+
+            container.innerHTML = scripts.map(function(s, i) {
+                return '<div class="dash-script-row" id="hosted-row-' + i + '">' +
                     '<div class="dash-script-row-left">' +
-                        '<div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);"><i class="fa-solid fa-server"></i></div>' +
-                        '<div class="dash-script-row-info">' +
-                            '<div class="dash-script-row-name">' + escHtml(s.label||'Unnamed') + '</div>' +
-                            '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">' + escHtml(s.url||s.hash||'') + '</div>' +
-                        '</div>' +
-                    '</div>' +
+                    '<div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);"><i class="fa-solid fa-server"></i></div>' +
+                    '<div class="dash-script-row-info">' +
+                    '<div class="dash-script-row-name">' + escHtml(s.label || 'Unnamed') + '</div>' +
+                    '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">' + escHtml(s.hash + '.lua') + '</div>' +
+                    '</div></div>' +
                     '<div class="dash-script-row-actions">' +
-                        '<button class="dash-icon-btn" title="Copy URL" onclick="dashCopyHostedUrl('+i+')"><i class="fa-solid fa-link"></i></button>' +
-                        '<button class="dash-icon-btn" title="Copy loadstring" onclick="dashCopyHostedLs('+i+')"><i class="fa-solid fa-code"></i></button>' +
-                        '<button class="dash-icon-btn danger" title="Delete" onclick="dashDeleteHosted('+i+')"><i class="fa-solid fa-trash"></i></button>' +
-                    '</div>' +
-                '</div>'
-            ).join('');
+                    '<button class="dash-icon-btn" title="Copy URL" data-hcopy-url="' + i + '"><i class="fa-solid fa-link"></i></button>' +
+                    '<button class="dash-icon-btn" title="Copy loadstring" data-hcopy-ls="' + i + '"><i class="fa-solid fa-code"></i></button>' +
+                    '<button class="dash-icon-btn danger" title="Delete" data-hdelete="' + i + '"><i class="fa-solid fa-trash"></i></button>' +
+                    '</div></div>';
+            }).join('');
+
+            container.querySelectorAll('[data-hcopy-url]').forEach(function(btn) {
+                btn.addEventListener('click', function() { dashCopyHostedUrl(parseInt(btn.getAttribute('data-hcopy-url'))); });
+            });
+            container.querySelectorAll('[data-hcopy-ls]').forEach(function(btn) {
+                btn.addEventListener('click', function() { dashCopyHostedLs(parseInt(btn.getAttribute('data-hcopy-ls'))); });
+            });
+            container.querySelectorAll('[data-hdelete]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var i = parseInt(btn.getAttribute('data-hdelete'));
+                    var s = _hostedCache[i];
+                    if (s) window.dashDeleteHosted(s.hash, i);
+                });
+            });
         }
 
         window.dashCopyHostedUrl = function(i) {
-            const s = getHostedScripts()[i]; if (!s) return;
-            const url = s.url || (s.hash ? ('https://api.flurs.xyz/files/v2/loader/'+s.hash+'.lua') : '');
-            navigator.clipboard.writeText(url).catch(()=>{}); flashBtn(i,0);
+            const s = _hostedCache[i]; if (!s) return;
+            navigator.clipboard.writeText(getScriptUrl(s.hash)).catch(() => {});
+            flashBtn(i, 0);
         };
         window.dashCopyHostedLs = function(i) {
-            const s = getHostedScripts()[i]; if (!s) return;
-            const url = s.url || (s.hash ? ('https://api.flurs.xyz/files/v2/loader/'+s.hash+'.lua') : '');
-            navigator.clipboard.writeText('loadstring(game:HttpGet("'+url+'", true))()').catch(()=>{}); flashBtn(i,1);
+            const s = _hostedCache[i]; if (!s) return;
+            navigator.clipboard.writeText(getLoadstring(s.hash)).catch(() => {});
+            flashBtn(i, 1);
         };
         function flashBtn(i, btnIdx) {
-            const row = document.getElementById('hosted-row-'+i);
+            const row = document.getElementById('hosted-row-' + i);
             if (!row) return;
             const btns = row.querySelectorAll('.dash-icon-btn');
             if (btns[btnIdx]) {
-                btns[btnIdx].style.borderColor='var(--green)'; btns[btnIdx].style.color='var(--green)';
-                setTimeout(()=>{ btns[btnIdx].style.borderColor=''; btns[btnIdx].style.color=''; },1000);
+                btns[btnIdx].style.borderColor = 'var(--green)';
+                btns[btnIdx].style.color = 'var(--green)';
+                setTimeout(() => { btns[btnIdx].style.borderColor = ''; btns[btnIdx].style.color = ''; }, 1000);
             }
         }
-        window.dashDeleteHosted = function(i) {
-            if (!confirm('Delete this hosted script?')) return;
-            const arr = getHostedScripts(); arr.splice(i,1);
-            localStorage.setItem('hostedScripts', JSON.stringify(arr));
-            renderHostedList(); refreshOverview();
+        window.dashDeleteHosted = async function(hash, i) {
+            if (!confirm('Delete this hosted script? Cannot be undone.')) return;
+            const data = await apiAdmin({ action: 'delete', hash }).catch(() => ({}));
+            if (data.ok) { renderHostedScripts(); refreshOverview(); }
+            else alert('Delete failed: ' + (data.error || 'unknown'));
         };
 
         // ── Clock ─────────────────────────────────────────────────────────
@@ -789,7 +842,7 @@
             const el = document.getElementById('dash-clock');
             if (!el) return;
             const n = new Date();
-            el.textContent = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+            el.textContent = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0') + ':' + String(n.getSeconds()).padStart(2,'0');
         }
         setInterval(updateClock, 1000); updateClock();
 
@@ -801,59 +854,53 @@
             });
             document.querySelectorAll('[data-tab]').forEach(el => {
                 el.addEventListener('click', function(e) {
-                    e.preventDefault(); switchTab(this.getAttribute('data-tab'));
+                    e.preventDefault();
+                    switchTab(this.getAttribute('data-tab'));
                 });
             });
         }
 
-        // ── Called once script.js has unlocked the panel ──────────────────
+        // ── Called once script.js unlocks the panel ───────────────────────
         function onDashboardUnlocked() {
             const gate  = document.getElementById('admin-gate');
             const panel = document.getElementById('admin-panel');
             const sb    = document.querySelector('.dash-sidebar');
-            if (gate)  gate.style.display  = 'none';
+            if (gate)  gate.style.display = 'none';
             if (panel) { panel.style.display = 'flex'; panel.style.flexDirection = 'row'; }
-            if (sb)    sb.style.display    = 'flex';
+            if (sb)    sb.style.display = 'flex';
 
-            // Remove any logout btn script.js injected (we have our own)
+            // Remove script.js injected logout btn — we have our own
             const oldLogout = document.getElementById('admin-logout-btn');
             if (oldLogout) oldLogout.remove();
 
             wireNavItems();
             refreshOverview();
-            // Fetch dynamic scripts from API so public-scripts tab is ready
-            if (typeof renderUploadedScriptsList === 'function') renderUploadedScriptsList();
         }
 
-        // ── Our logout button ─────────────────────────────────────────────
+        // ── Logout ────────────────────────────────────────────────────────
         function wireOurLogout() {
             document.addEventListener('click', function(e) {
-                const btn = e.target.closest('#dash-logout-btn');
-                if (!btn) return;
-                // Clear saved password same as script.js does
+                if (!e.target.closest('#dash-logout-btn')) return;
                 localStorage.removeItem('flurs_admin_pw');
                 const gate  = document.getElementById('admin-gate');
                 const panel = document.getElementById('admin-panel');
                 const sb    = document.querySelector('.dash-sidebar');
-                if (gate)  gate.style.display  = 'flex';
+                if (gate)  gate.style.display = 'flex';
                 if (panel) panel.style.display = 'none';
-                if (sb)    sb.style.display    = 'none';
+                if (sb)    sb.style.display = 'none';
                 const pwInput = document.getElementById('admin-password-input');
                 if (pwInput) pwInput.value = '';
             });
         }
 
-        // ── Watch admin-panel for script.js setting it visible ────────────
+        // ── Watch for script.js unlocking the panel ───────────────────────
         function watchForUnlock() {
             const panel = document.getElementById('admin-panel');
             if (!panel) return;
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(m) {
-                    if (m.type === 'attributes' && m.attributeName === 'style') {
-                        const vis = panel.style.display && panel.style.display !== 'none';
-                        if (vis) onDashboardUnlocked();
-                    }
-                });
+            let alreadyFired = false;
+            const observer = new MutationObserver(function() {
+                const vis = panel.style.display && panel.style.display !== 'none';
+                if (vis && !alreadyFired) { alreadyFired = true; onDashboardUnlocked(); }
             });
             observer.observe(panel, { attributes: true, attributeFilter: ['style'] });
         }
@@ -864,13 +911,12 @@
             wireNavItems();
             watchForUnlock();
 
-            // Hide sidebar until logged in
             const sb   = document.querySelector('.dash-sidebar');
             const gate = document.getElementById('admin-gate');
-            if (sb)   sb.style.display   = 'none';
+            if (sb)   sb.style.display = 'none';
             if (gate) gate.style.display = 'flex';
 
-            // If script.js already auto-unlocked (saved password), fire immediately
+            // If already auto-unlocked from saved password
             const panel = document.getElementById('admin-panel');
             if (panel && panel.style.display && panel.style.display !== 'none') {
                 onDashboardUnlocked();
