@@ -735,7 +735,8 @@
                 }).join('');
                 var action = s.hardcoded
                     ? '<span style="font-size:0.68rem;color:var(--muted);padding:0 0.4rem;">locked</span>'
-                    : '<button class="dash-icon-btn danger" title="Delete" data-pub-id="' + escHtml(s.id) + '"><i class="fa-solid fa-trash"></i></button>';
+                    : '<button class="dash-icon-btn" title="Edit" data-pub-edit-id="' + escHtml(s.id) + '"><i class="fa-solid fa-pen"></i></button>' +
+                      '<button class="dash-icon-btn danger" title="Delete" data-pub-id="' + escHtml(s.id) + '"><i class="fa-solid fa-trash"></i></button>';
                 return '<div class="dash-script-row">' +
                     '<div class="dash-script-row-left">' + thumb +
                     '<div class="dash-script-row-info">' +
@@ -749,6 +750,10 @@
             container.querySelectorAll('[data-pub-id]').forEach(function(btn) {
                 btn.addEventListener('click', function() { window.dashDeletePublic(btn.getAttribute('data-pub-id')); });
             });
+            // Wire edit buttons
+            container.querySelectorAll('[data-pub-edit-id]').forEach(function(btn) {
+                btn.addEventListener('click', function() { window.dashEditPublic(btn.getAttribute('data-pub-edit-id')); });
+            });
             // Hide broken images
             container.querySelectorAll('.dash-pub-thumb').forEach(function(img) {
                 img.addEventListener('error', function() { img.classList.add('broken'); });
@@ -760,6 +765,32 @@
             const data = await apiUploadscript({ action: 'delete', id, password: getPw() }).catch(() => ({}));
             if (data.ok) { renderPublicScripts(); refreshOverview(); }
             else alert('Delete failed: ' + (data.error || 'unknown'));
+        };
+
+        window.dashEditPublic = async function(id) {
+            // Find the script in the rendered list
+            const data = await apiUploadscript({ action: 'list' }).catch(() => ({}));
+            const dynScripts = (data.ok && Array.isArray(data.scripts)) ? data.scripts : [];
+            const s = dynScripts.find(function(x) { return x.id === id; });
+            if (!s) { alert('Script not found.'); return; }
+            // Pre-fill the Add Public Script form and switch to that tab
+            const nameEl = document.getElementById('us-name');
+            const tagsEl = document.getElementById('us-tags');
+            const descEl = document.getElementById('us-description');
+            const lsEl   = document.getElementById('us-loadstring');
+            if (nameEl) nameEl.value = s.name || '';
+            if (tagsEl) tagsEl.value = Array.isArray(s.tags) ? s.tags.join(', ') : '';
+            if (descEl) descEl.value = s.description || '';
+            if (lsEl)   lsEl.value   = s.loadstring || '';
+            // Store edit id so save button updates instead of creates
+            document.getElementById('us-name').dataset.editId = id;
+            // Mark form as editing
+            const submitBtn = document.getElementById('us-submit-btn');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+                submitBtn.dataset.editId = id;
+            }
+            switchTab('add-public');
         };
 
         // ── Hosted Scripts tab ────────────────────────────────────────────
@@ -789,6 +820,7 @@
                     '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">' + escHtml(s.hash + '.lua') + '</div>' +
                     '</div></div>' +
                     '<div class="dash-script-row-actions">' +
+                    '<button class="dash-icon-btn" title="Edit label" data-hedit="' + i + '"><i class="fa-solid fa-pen"></i></button>' +
                     '<button class="dash-icon-btn" title="Copy URL" data-hcopy-url="' + i + '"><i class="fa-solid fa-link"></i></button>' +
                     '<button class="dash-icon-btn" title="Copy loadstring" data-hcopy-ls="' + i + '"><i class="fa-solid fa-code"></i></button>' +
                     '<button class="dash-icon-btn danger" title="Delete" data-hdelete="' + i + '"><i class="fa-solid fa-trash"></i></button>' +
@@ -806,6 +838,21 @@
                     var i = parseInt(btn.getAttribute('data-hdelete'));
                     var s = _hostedCache[i];
                     if (s) window.dashDeleteHosted(s.hash, i);
+                });
+            });
+            container.querySelectorAll('[data-hedit]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var i = parseInt(btn.getAttribute('data-hedit'));
+                    var s = _hostedCache[i];
+                    if (!s) return;
+                    var newLabel = prompt('Edit script label:', s.label || '');
+                    if (newLabel === null) return;
+                    newLabel = newLabel.trim();
+                    if (!newLabel) { alert('Label cannot be empty.'); return; }
+                    apiAdmin({ action: 'rename', hash: s.hash, label: newLabel }).then(function(d) {
+                        if (d && d.ok) { renderHostedScripts(); }
+                        else { alert('Rename failed: ' + ((d && d.error) || 'unknown')); }
+                    }).catch(function() { alert('Rename failed.'); });
                 });
             });
         }
