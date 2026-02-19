@@ -49,8 +49,6 @@ export default async function handler(req, res) {
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
   if (!hash) return res.status(400).end('-- Not found');
 
-  // Serve a bootstrapper — the executor runs this Lua which grabs
-  // username + hwid, then calls /api/files/v2/exec which logs and returns the real script
   const execUrl = `https://api.flurs.xyz/api/files/v2/exec/${hash}.lua`;
 
   const bootstrapper = `-- Flurs Loader
@@ -77,7 +75,12 @@ if ok3 and uname then u = uname end
 
 local url = "${execUrl}?u=" .. hs:UrlEncode(u) .. "&hwid=" .. hs:UrlEncode(hwid)
 local src = game:HttpGet(url, true)
-loadstring(src)()`;
+local fn, err = loadstring(src)
+if not fn then
+    warn("[Flurs] Script error: " .. tostring(err))
+    return
+end
+fn()`;
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.status(200).end(bootstrapper);
