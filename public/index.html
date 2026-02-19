@@ -991,7 +991,7 @@
         }
 
         function getScriptUrl(hash) {
-            return 'https://api.flurs.xyz/files/v2/loader/' + hash + '.lua';
+            return 'https://www.flurs.xyz/files/v2/loader/' + hash + '.lua';
         }
         function getLoadstring(hash) {
             return 'loadstring(game:HttpGet("' + getScriptUrl(hash) + '", true))()';
@@ -1286,7 +1286,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua"))()`;
+            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/${hash}.lua"))()`;
         }
 
         function getLoaderFile(hash) {
@@ -1294,7 +1294,7 @@
             // v3 loader reads the key from X-Flurs-Key header
             return `-- Flurs v3 Loader
 -- Do NOT share this URL without a key — it will just return an error.
--- Usage: FLURS_KEY="YOUR-KEY"; loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua"))()
+-- Usage: FLURS_KEY="YOUR-KEY"; loadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/${hash}.lua"))()
 
 local key = (getgenv and getgenv().FLURS_KEY) or (genv and genv().FLURS_KEY)
 if not key or key == "" then
@@ -1306,7 +1306,7 @@ local ok_hwid, hwid = pcall(function()
 end)
 
 local ok, result = pcall(function()
-    return game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true, {
+    return game:HttpGet("https://www.flurs.xyz/files/v3/loader/${hash}.lua", true, {
         ["X-Flurs-Key"]  = key,
         ["X-Flurs-Hwid"] = ok_hwid and hwid or "unknown",
     })

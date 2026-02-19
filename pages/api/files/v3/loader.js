@@ -57,9 +57,7 @@ export default async function handler(req, res) {
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
   if (!hash) return res.status(400).end('-- invalid_hash');
 
-  const API = process.env.ALLOWED_ORIGIN
-    ? `${process.env.ALLOWED_ORIGIN}/api/keys`
-    : 'https://www.flurs.xyz/api/keys';
+  const API = 'https://www.flurs.xyz/api/keys';
 
   const lua = `-- Flurs Secure Loader v3 | https://flurs.xyz
 do
