@@ -846,7 +846,7 @@
                 <div class="dash-tab" id="tab-bootstrap">
                     <div class="dash-tab-header">
                         <h1 class="dash-tab-title">Bootstrap Loader</h1>
-                        <p class="dash-tab-subtitle">Obfuscate a URL or raw Lua into an encrypted blob — upload as a Key Script to protect it end-to-end</p>
+                        <p class="dash-tab-subtitle">Obfuscate a script URL or raw Lua into an encrypted byte table</p>
                     </div>
                     <div class="dash-form-card" style="margin-bottom:1.5rem;">
                         <div class="dash-form-group">
@@ -865,23 +865,23 @@
                             </div>
                         </div>
                         <div id="bs-lua-group" class="dash-form-group">
-                            <label class="dash-label">Lua to obfuscate <span class="dash-hint">entire block gets encrypted into a byte table</span></label>
-                            <textarea id="bs-lua" class="dash-textarea admin-textarea" style="min-height:110px;font-family:'Courier New',monospace;font-size:0.82rem;" placeholder='script_key="YOUR-KEY"&#10;loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()'></textarea>
+                            <label class="dash-label">Lua to obfuscate <span class="dash-hint">entire block gets XOR-encrypted</span></label>
+                            <textarea id="bs-lua" class="dash-textarea admin-textarea" style="min-height:110px;font-family:'Courier New',monospace;font-size:0.82rem;" placeholder="-- paste any Lua here&#10;-- e.g. a full script, or just the two-line key+loadstring"></textarea>
                         </div>
                         <div id="bs-url-group" class="dash-form-group" style="display:none;">
-                            <label class="dash-label">Script URL <span class="dash-hint">fetched and executed at runtime — URL is encrypted</span></label>
+                            <label class="dash-label">Script URL <span class="dash-hint">encrypted URL is HttpGet'd at runtime</span></label>
                             <input type="url" id="bs-url" placeholder="https://raw.githubusercontent.com/…/script.lua" class="dash-input admin-input" style="font-family:monospace;font-size:0.82rem;">
                         </div>
                         <div style="padding:0.75rem 1rem;background:rgba(250,200,90,0.06);border:1px solid rgba(250,200,90,0.18);border-radius:10px;margin-bottom:1rem;display:flex;gap:0.65rem;align-items:flex-start;">
                             <i class="fa-solid fa-triangle-exclamation" style="color:#f0c040;margin-top:0.1rem;flex-shrink:0;font-size:0.82rem;"></i>
-                            <p style="font-size:0.78rem;color:var(--muted);margin:0;">Content is XOR-encoded — <strong style="color:var(--fg);">never stored in plaintext</strong>. Copy the output Lua and upload it as a Key Script for full key-gate + obfuscation protection.</p>
+                            <p style="font-size:0.78rem;color:var(--muted);margin:0;">Content is XOR-encoded — <strong style="color:var(--fg);">never stored in plaintext</strong>. To key-gate it, copy the output Lua and paste it into <strong style="color:var(--fg);">Upload Key Script</strong>.</p>
                         </div>
                         <button id="bs-generate-btn" class="dash-primary-btn">
                             <i class="fa-solid fa-shield-virus"></i> Generate Bootstrap Blob
                         </button>
                         <div id="bs-result" style="display:none;margin-top:1.25rem;">
                             <div class="dash-success-banner" style="margin-bottom:1rem;">
-                                <i class="fa-solid fa-check-circle"></i> Blob generated — copy the loadstring below to give to users, or copy the Lua to upload as a Key Script.
+                                <i class="fa-solid fa-check-circle"></i> Blob generated!
                             </div>
                             <div class="dash-card" style="margin-top:0;">
                                 <div class="dash-card-header" style="padding-bottom:0.75rem;">
@@ -891,7 +891,7 @@
                                     <code class="script-code" id="bs-loadstring-out" style="white-space:pre;font-size:0.78rem;word-break:break-all;"></code>
                                     <button class="copy-btn" id="bs-copy-ls-btn">Copy</button>
                                 </div>
-                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;"><i class="fa-solid fa-fingerprint" style="color:var(--accent2);margin-right:0.3rem;"></i>Bootstrap ID: <code id="bs-result-id" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.72rem;"></code></p>
+                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;"><i class="fa-solid fa-fingerprint" style="color:var(--accent2);margin-right:0.3rem;"></i>ID: <code id="bs-result-id" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.72rem;"></code></p>
                             </div>
                         </div>
                     </div>
@@ -1826,13 +1826,10 @@ fn()`;
             _bsMode = mode;
             document.getElementById('bs-lua-group').style.display = mode === 'lua' ? '' : 'none';
             document.getElementById('bs-url-group').style.display = mode === 'url' ? '' : 'none';
-            var on  = 'var(--accent)';
-            var off = 'var(--surface2)';
-            document.getElementById('bs-mode-lua').style.background = mode === 'lua' ? on : off;
-            document.getElementById('bs-mode-url').style.background = mode === 'url' ? on : off;
+            document.getElementById('bs-mode-lua').style.background = mode === 'lua' ? 'var(--accent)' : 'var(--surface2)';
+            document.getElementById('bs-mode-url').style.background = mode === 'url' ? 'var(--accent)' : 'var(--surface2)';
         };
 
-        // Bootstrap uses a plain JSON fetch — body parsed server-side manually
         async function apiBootstrap(payload) {
             const r = await fetch('/api/bootstrap', {
                 method: 'POST',
@@ -1854,13 +1851,13 @@ fn()`;
             if (badge) badge.textContent = _bsCache.length;
             if (!_bsCache.length) { container.innerHTML = '<p class="dash-empty">No bootstrap blobs yet.</p>'; return; }
             container.innerHTML = _bsCache.map(function(b, i) {
-                var modeLabel = b.mode === 'url' ? 'URL' : 'Lua';
-                var modeColor = b.mode === 'url' ? 'var(--accent2)' : 'var(--green)';
+                var modeCol = b.mode === 'url' ? 'var(--accent2)' : 'var(--green)';
                 return '<div class="dash-script-row">' +
                     '<div class="dash-script-row-left">' +
                     '<div class="dash-script-row-icon" style="background:rgba(250,150,60,0.1);border-color:rgba(250,150,60,0.2);color:#f0924a;"><i class="fa-solid fa-shield-virus"></i></div>' +
                     '<div class="dash-script-row-info">' +
-                    '<div class="dash-script-row-name">' + escHtml(b.label || 'Bootstrap') + ' <span style="font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:4px;background:rgba(124,109,250,0.1);color:' + modeColor + ';">' + modeLabel + '</span></div>' +
+                    '<div class="dash-script-row-name">' + escHtml(b.label || 'Bootstrap') +
+                    ' <span style="font-size:0.65rem;padding:0.1rem 0.35rem;border-radius:3px;background:rgba(124,109,250,0.1);color:' + modeCol + ';">' + escHtml(b.mode || 'lua') + '</span></div>' +
                     '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);">' + escHtml(b.id.slice(0,20) + '…') + '</div>' +
                     '</div></div>' +
                     '<div class="dash-script-row-actions">' +
@@ -1893,8 +1890,8 @@ fn()`;
 
         document.addEventListener('click', async function(e) {
             if (e.target.closest('#bs-generate-btn')) {
-                var label   = (document.getElementById('bs-label') || {}).value || '';
-                var payload = { action: 'generate', label: label.trim() };
+                var label = ((document.getElementById('bs-label') || {}).value || '').trim();
+                var payload = { action: 'generate', label: label };
                 if (_bsMode === 'lua') {
                     var lua = ((document.getElementById('bs-lua') || {}).value || '').trim();
                     if (!lua) { alert('Paste some Lua to obfuscate.'); return; }
@@ -1917,11 +1914,11 @@ fn()`;
                 renderBootstraps();
             }
             if (e.target.closest('#bs-copy-ls-btn')) {
-                var code = (document.getElementById('bs-loadstring-out') || {}).textContent || '';
+                var code = ((document.getElementById('bs-loadstring-out') || {}).textContent || '');
                 navigator.clipboard.writeText(code).then(function() {
-                    var btn = document.getElementById('bs-copy-ls-btn');
-                    btn.textContent = '✓ Copied';
-                    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+                    var b = document.getElementById('bs-copy-ls-btn');
+                    b.textContent = '✓ Copied';
+                    setTimeout(function() { b.textContent = 'Copy'; }, 1500);
                 });
             }
             if (e.target.closest('#bs-refresh-btn')) renderBootstraps();
