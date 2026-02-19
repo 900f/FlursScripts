@@ -62,16 +62,26 @@ function buildLua(meta) {
     const execLine = mode === 'url'
         ? `loadstring(game:HttpGet(${vDec},true))`
         : `loadstring(${vDec})`;
+    const vXor = randVar();
     return `-- Flurs Bootstrap | https://flurs.xyz
 -- ${label || 'Protected Script'}
 do
+    local ${vXor} = bit32 and bit32.bxor or function(a,b)
+        local r,m=0,1
+        while a>0 or b>0 do
+            local x,y=a%2,b%2
+            if x~=y then r=r+m end
+            a,b,m=math.floor(a/2),math.floor(b/2),m*2
+        end
+        return r
+    end
     local ${vData}  = ${toLuaTable(encoded)}
     local ${vSeed}  = bit32 and bit32.bor(bit32.lshift(${seedHi},16),${seedLo}) or (${seedHi}*65536+${seedLo})
     local ${vState} = ${vSeed}
     local ${vOut}   = {}
     for ${vI} = 1, #${vData} do
         ${vState} = (${vState}*1664525+1013904223)%4294967296
-        ${vOut}[${vI}] = string.char(bit32 and bit32.bxor(${vData}[${vI}],${vState}%256) or (${vData}[${vI}]~(${vState}%256)))
+        ${vOut}[${vI}] = string.char(${vXor}(${vData}[${vI}],${vState}%256))
     end
     local ${vDec} = table.concat(${vOut})
     local ${vFn}, ${vErr} = ${execLine}
