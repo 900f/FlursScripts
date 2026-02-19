@@ -39,8 +39,8 @@ function isBrowser(req) {
 async function writeLog({ hash, label, ip, ua }) {
   try {
     await sql`
-      INSERT INTO execution_logs (script_hash, script_label, script_type, ip, user_agent, executed_at)
-      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, ${ua}, ${Date.now()})
+      INSERT INTO execution_logs (script_hash, script_label, script_type, ip, hwid, roblox_username, user_agent, executed_at)
+      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, null, null, ${ua}, ${Date.now()})
     `;
   } catch (e) {
     console.error('[v2 loader] log write failed:', e.message);

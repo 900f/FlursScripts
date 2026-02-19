@@ -94,7 +94,7 @@ export default async function handler(req, res) {
 
 // ── VALIDATE ──────────────────────────────────────────────────────────────
 async function handleValidate(req, res, params, ip) {
-  const { key, hwid, scriptHash } = params;
+  const { key, hwid, scriptHash, robloxUsername } = params;
   if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
   if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
 
@@ -146,7 +146,7 @@ async function handleValidate(req, res, params, ip) {
 
   // Write execution log (fire and forget)
   sql`
-    INSERT INTO execution_logs (script_hash, script_label, script_type, ip, hwid, key_used, executed_at)
+    INSERT INTO execution_logs (script_hash, script_label, script_type, ip, hwid, key_used, roblox_username, executed_at)
     VALUES (
       ${scriptHash},
       ${scriptRows[0].label || 'Unknown'},
@@ -154,6 +154,7 @@ async function handleValidate(req, res, params, ip) {
       ${ip},
       ${newHwid || null},
       ${keyData.key},
+      ${robloxUsername || null},
       ${now}
     )
   `.catch(e => console.error('[keys] log write failed:', e.message));

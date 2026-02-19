@@ -57,7 +57,7 @@ export default async function handler(req, res) {
 
     const API = 'https://api.flurs.xyz/api/keys';
 
-    const lua = `-- Flurs Loader (http_request GET version) | https://flurs.xyz
+    const lua = `-- Flurs Loader v3 | https://flurs.xyz
 local _hash = "${hash}"
 local _api  = "${API}"
 
@@ -66,46 +66,60 @@ local key = (getgenv and getgenv().script_key)
          or (getfenv and getfenv().script_key)
 
 if not key or key == "" then
-    error("[Flurs] No key set. Run this first: script_key=\\"YOUR-KEY\\"", 0)
+    error("[Flurs] No key set. Do: script_key=\\"YOUR-KEY\\"", 0)
 end
 
-local ok_hwid, hwid = pcall(function()
-    return game:GetService("RbxAnalyticsService"):GetClientId()
-end)
+local hs = game:GetService("HttpService")
 
--- Build query string (safely encoded)
+-- Get HWID (try multiple methods)
+local hwid = "unknown"
+local ok1, h1 = pcall(function() return game:GetService("RbxAnalyticsService"):GetClientId() end)
+if ok1 and h1 and h1 ~= "" then
+    hwid = h1
+else
+    local ok2, h2 = pcall(function()
+        return tostring(game:GetService("Players").LocalPlayer.UserId) .. "_device"
+    end)
+    if ok2 and h2 then hwid = h2 end
+end
+
+-- Get Roblox username
+local robloxUsername = "unknown"
+local ok3, uname = pcall(function()
+    return game:GetService("Players").LocalPlayer.Name
+end)
+if ok3 and uname then robloxUsername = uname end
+
+-- Build query string
 local query = "action=validate" ..
-              "&key="       .. game:GetService("HttpService"):UrlEncode(key) ..
-              "&hwid="      .. game:GetService("HttpService"):UrlEncode(ok_hwid and hwid or "unknown") ..
-              "&scriptHash=" .. game:GetService("HttpService"):UrlEncode(_hash)
+              "&key="            .. hs:UrlEncode(key) ..
+              "&hwid="           .. hs:UrlEncode(hwid) ..
+              "&robloxUsername=" .. hs:UrlEncode(robloxUsername) ..
+              "&scriptHash="     .. hs:UrlEncode(_hash)
 
 local success, response = pcall(function()
     return http_request({
         Url = _api .. "?" .. query,
         Method = "GET",
-        Headers = {
-            ["Accept"] = "application/json",
-            ["Content-Type"] = "application/json"  -- harmless for GET
-        }
+        Headers = { ["Accept"] = "application/json" }
     })
 end)
 
 if not success then
-    error("[Flurs] http_request failed to send: " .. tostring(response), 0)
+    error("[Flurs] Request failed: " .. tostring(response), 0)
 end
 
 if response.StatusCode < 200 or response.StatusCode >= 300 then
-    error("[Flurs] Server error - " .. tostring(response.StatusCode) .. " " .. tostring(response.StatusMessage), 0)
+    error("[Flurs] Server error " .. tostring(response.StatusCode), 0)
 end
 
-local hs = game:GetService("HttpService")
 local data
-local ok, decodeErr = pcall(function()
+local ok4, decodeErr = pcall(function()
     data = hs:JSONDecode(response.Body)
 end)
 
-if not ok or type(data) ~= "table" then
-    error("[Flurs] Bad JSON response from server: " .. tostring(response.Body:sub(1, 200)), 0)
+if not ok4 or type(data) ~= "table" then
+    error("[Flurs] Bad response: " .. tostring(response.Body:sub(1, 200)), 0)
 end
 
 if not data.ok then

@@ -926,6 +926,7 @@
                                         <th>Time</th>
                                         <th>Type</th>
                                         <th>Script</th>
+                                        <th>Username</th>
                                         <th>IP</th>
                                         <th>HWID</th>
                                         <th>Key Used</th>
@@ -933,7 +934,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="logs-tbody">
-                                    <tr><td colspan="7" class="dash-empty" style="text-align:center;padding:2rem;">Loading logs…</td></tr>
+                                    <tr><td colspan="8" class="dash-empty" style="text-align:center;padding:2rem;">Loading logs…</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1830,17 +1831,21 @@ fn()`;
         }
 
         function renderLogRow(log) {
-            const type = log.script_type || 'v2';
+            const type  = log.script_type || 'v2';
             const badge = `<span class="log-badge ${type}">${type === 'v3' ? '<i class="fa-solid fa-key"></i>' : '<i class="fa-solid fa-server"></i>'} ${type}</span>`;
+            const uname = log.roblox_username && log.roblox_username !== 'unknown'
+                ? `<span style="color:#34d399;font-weight:600;font-size:0.78rem;">${escHtml(log.roblox_username)}</span>`
+                : `<span class="log-none">—</span>`;
             const ip    = log.ip    ? `<span class="log-ip">${escHtml(log.ip)}</span>` : `<span class="log-none">—</span>`;
-            const hwid  = log.hwid  ? `<span class="log-hwid" title="${escHtml(log.hwid)}">${escHtml(log.hwid.slice(0,16))}${log.hwid.length>16?'…':''}</span>` : `<span class="log-none">—</span>`;
-            const key   = log.key_used ? `<span class="log-key" title="${escHtml(log.key_used)}">${escHtml(log.key_used.slice(0,14))}…</span>` : `<span class="log-none">—</span>`;
-            const ua    = log.user_agent ? `<span class="log-ua" title="${escHtml(log.user_agent)}">${escHtml(log.user_agent.slice(0,30))}${log.user_agent.length>30?'…':''}</span>` : `<span class="log-none">—</span>`;
+            const hwid  = log.hwid  ? `<span class="log-hwid" title="${escHtml(log.hwid)}">${escHtml(log.hwid.slice(0,18))}${log.hwid.length>18?'…':''}</span>` : `<span class="log-none">—</span>`;
+            const key   = log.key_used ? `<span class="log-key" title="${escHtml(log.key_used)}">${escHtml(log.key_used.slice(0,16))}…</span>` : `<span class="log-none">—</span>`;
+            const ua    = log.user_agent ? `<span class="log-ua" title="${escHtml(log.user_agent)}">${escHtml(log.user_agent.slice(0,28))}${log.user_agent.length>28?'…':''}</span>` : `<span class="log-none">—</span>`;
             const label = log.script_label || shortHash(log.script_hash);
             return `<tr>
                 <td class="log-time">${fmtTime(log.executed_at)}</td>
                 <td>${badge}</td>
-                <td><span class="log-hash" title="${escHtml(log.script_hash||'')}"><b style="color:var(--text);">${escHtml(label)}</b><br><span style="font-size:0.68rem;">${shortHash(log.script_hash)}</span></span></td>
+                <td><span class="log-hash" title="${escHtml(log.script_hash||'')}"><b style="color:var(--text);">${escHtml(label)}</b><br><span style="font-size:0.68rem;opacity:0.6;">${shortHash(log.script_hash)}</span></span></td>
+                <td>${uname}</td>
                 <td>${ip}</td>
                 <td>${hwid}</td>
                 <td>${key}</td>
@@ -1865,7 +1870,7 @@ fn()`;
             const tbody = document.getElementById('logs-tbody');
             if (!tbody) return;
             if (!data.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="dash-empty" style="text-align:center;padding:2rem;">No logs found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="dash-empty" style="text-align:center;padding:2rem;">No logs found</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(renderLogRow).join('');

@@ -84,7 +84,7 @@ export default async function handler(req, res) {
         sql`SELECT COUNT(*) as c FROM execution_logs WHERE executed_at > ${Date.now() - 86400000}`,
         sql`SELECT COUNT(DISTINCT ip) as c FROM execution_logs`,
         sql`SELECT script_type, COUNT(*) as c FROM execution_logs GROUP BY script_type`,
-        sql`SELECT script_hash, script_label, script_type, COUNT(*) as c FROM execution_logs GROUP BY script_hash, script_label, script_type ORDER BY c DESC LIMIT 5`,
+        sql`SELECT script_hash, script_label, script_type, COUNT(*) as c FROM execution_logs GROUP BY script_hash, script_label, script_type ORDER BY COUNT(*) DESC LIMIT 5`,
       ]);
 
       return res.status(200).json({
