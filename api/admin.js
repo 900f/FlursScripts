@@ -1,9 +1,8 @@
 // api/admin.js
-
-import { sql } from '../../lib/db';  // Adjust path: e.g. '../../../lib/db' depending on your folder structure
+import { sql } from '../../lib/db';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not set');
+if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD not set');
 
 const attempts = new Map();
 const MAX_ATTEMPTS = 10;
@@ -30,21 +29,23 @@ function clearFailures(ip) {
   attempts.delete(ip);
 }
 
-function unauthorized(res) {
-  return res.status(401).json({ error: 'Unauthorized' });
-}
-
 async function getMeta(hash) {
-  const rows = await sql`SELECT * FROM scripts WHERE hash = ${hash}`;
-  return rows[0] || null;
+  try {
+    const rows = await sql`SELECT * FROM scripts WHERE hash = ${hash}`;
+    return rows[0] || null;
+  } catch (err) {
+    console.error('[getMeta]', err);
+    throw err;
+  }
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
   const origin = req.headers.origin || '';
-
   if (origin && origin !== allowedOrigin) {
-    return res.status(403).json({ error: 'Forbidden' });
+    return res.status(403).json({ error: 'Forbidden origin' });
   }
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -57,14 +58,21 @@ export default async function handler(req, res) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 
   if (isRateLimited(ip)) {
-    return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    return res.status(429).json({ error: 'Rate limited – try again in 15 minutes' });
   }
 
-  const { action, password, hash, label, content } = req.body || {};
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
+
+  const { action, password, hash, label, content } = body;
 
   if (action === 'trackhosted') {
     try {
-      const { hash: h, username, gameId, gameName, serverId } = req.body || {};
+      const { hash: h, username, gameId, gameName, serverId } = body;
       if (!h) return res.status(400).json({ error: 'Missing hash' });
 
       const existing = await getMeta(h);
@@ -89,15 +97,15 @@ export default async function handler(req, res) {
       `;
 
       return res.status(200).json({ ok: true });
-    } catch (e) {
-      console.error('trackhosted error:', e);
-      return res.status(500).json({ error: 'Track failed' });
+    } catch (err) {
+      console.error('[trackhosted]', err);
+      return res.status(500).json({ error: 'Track failed', detail: err.message });
     }
   }
 
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
-    return unauthorized(res);
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   clearFailures(ip);
@@ -125,7 +133,6 @@ export default async function handler(req, res) {
 
     if (action === 'get') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
-
       const meta = await getMeta(hash);
       if (!meta) return res.status(404).json({ error: 'Script not found' });
 
@@ -157,7 +164,11 @@ export default async function handler(req, res) {
 
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
-    console.error('Admin error:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('[admin handler]', err);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 }
