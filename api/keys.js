@@ -3,9 +3,6 @@
 import { sql } from '../../lib/db';
 import crypto from 'crypto';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not set');
-
 const attempts = new Map();
 const MAX_TRIES = 15;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -39,7 +36,6 @@ async function logSecurityEvent(type, details) {
       INSERT INTO security_log (type, details)
       VALUES (${type}, ${JSON.stringify(details)}::jsonb)
     `;
-    // Optional: trim old entries (keep last 200)
     await sql`
       DELETE FROM security_log
       WHERE id NOT IN (
@@ -132,7 +128,7 @@ async function saveScriptMeta(hash, meta) {
       ${meta.content},
       ${meta.createdAt || Date.now()},
       ${meta.useCount || 0},
-      ${meta.lastUsed},
+      ${meta.lastUsed || null},
       ${JSON.stringify(meta.usageLog || [])}::jsonb
     )
     ON CONFLICT (hash) DO UPDATE SET
@@ -172,6 +168,11 @@ async function trackScriptUse(hash, username, ip) {
 }
 
 export default async function handler(req, res) {
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  if (!ADMIN_PASSWORD) {
+    return res.status(500).json({ error: 'Server misconfiguration: ADMIN_PASSWORD not set' });
+  }
+
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
   const origin = req.headers.origin || '';
   if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });

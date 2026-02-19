@@ -1,9 +1,6 @@
 // api/admin.js
 import { sql } from '../../lib/db';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD not set');
-
 const attempts = new Map();
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -42,6 +39,11 @@ async function getMeta(hash) {
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  if (!ADMIN_PASSWORD) {
+    return res.status(500).json({ error: 'Server misconfiguration: ADMIN_PASSWORD not set' });
+  }
+
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
   const origin = req.headers.origin || '';
   if (origin && origin !== allowedOrigin) {
@@ -61,10 +63,8 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Rate limited – try again in 15 minutes' });
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
+  const body = req.body;
+  if (!body || typeof body !== 'object') {
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
 

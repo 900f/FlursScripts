@@ -1,9 +1,6 @@
 import { sql } from '../../lib/db';
 import { put, del } from '@vercel/blob';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not set');
-
 const attempts = new Map();
 const MAX_TRIES = 10;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -33,8 +30,21 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
+
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  if (!ADMIN_PASSWORD) {
+    return res.status(500).json({ error: 'Server misconfiguration: ADMIN_PASSWORD not set' });
+  }
 
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
   const origin = req.headers.origin || '';
@@ -52,10 +62,8 @@ export default async function handler(req, res) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   if (isRateLimited(ip)) return res.status(429).json({ error: 'Rate limited – try again in 15 minutes' });
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
+  const body = req.body;
+  if (!body || typeof body !== 'object') {
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
 
@@ -168,8 +176,8 @@ export default async function handler(req, res) {
           ${imageUrl},
           ${existing.created_at || Date.now()},
           ${existing.use_count || 0},
-          ${existing.last_used},
-          ${existing.usage_log || '[]'::jsonb}
+          ${existing.last_used || null},
+          ${existing.usage_log || '[]'}::jsonb
         )
         ON CONFLICT (id) DO UPDATE SET
           name        = EXCLUDED.name,
