@@ -45,8 +45,7 @@ export default async function handler(req, res) {
   if (isBrowser(req))       return res.status(403).end('-- Forbidden');
   if (isRateLimited(req))   return res.status(429).end('-- Slow down');
 
-  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
-  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
+  const hash = req.query?.hash?.toLowerCase() || null;
   if (!hash) return res.status(400).end('-- Not found');
 
   const execUrl = `https://api.flurs.xyz/api/files/v2/exec/${hash}.lua`;

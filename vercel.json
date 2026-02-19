@@ -2,16 +2,16 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/uploadscript/image/:id",
-      "destination": "/api/scriptimage"
-    },
-    {
       "source": "/files/v2/loader/:hash.lua",
-      "destination": "/api/files/v2/loader"
+      "destination": "/api/files/v2/loader?hash=:hash"
     },
     {
       "source": "/api/files/v2/loader/:hash.lua",
-      "destination": "/api/files/v2/loader"
+      "destination": "/api/files/v2/loader?hash=:hash"
+    },
+    {
+      "source": "/api/files/v2/exec/:hash.lua",
+      "destination": "/api/files/v2/exec?hash=:hash"
     },
     {
       "source": "/api/files/v2/exec/:hash.lua",

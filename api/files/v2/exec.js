@@ -27,9 +27,8 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return res.status(405).end('-- Method Not Allowed');
 
-  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
-  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-  if (!hash) return res.status(400).end('-- Not found');
+    const hash = req.query?.hash?.toLowerCase() || null;
+    if (!hash) return res.status(400).end('-- Not found');
 
   const ip  = getIP(req);
   const ua  = req.headers['user-agent'] || 'unknown';
