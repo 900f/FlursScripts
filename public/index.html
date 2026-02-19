@@ -854,7 +854,7 @@
                 <div class="dash-tab" id="tab-analytics">
                     <div class="dash-tab-header">
                         <h1 class="dash-tab-title">Script Analytics</h1>
-                        <p class="dash-tab-subtitle">How many times each key script has been executed, and by whom</p>
+                        <p class="dash-tab-subtitle">Execution history for key scripts and public scripts</p>
                     </div>
                     <div class="dash-stat-grid" id="analytics-summary-grid" style="margin-bottom:1.5rem;">
                         <!-- filled dynamically -->
@@ -1365,7 +1365,9 @@ fn()`;
 
             container.querySelectorAll('[data-ks-copy]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
-                    navigator.clipboard.writeText(btn.getAttribute('data-ks-copy')).catch(()=>{});
+                    const hash = btn.getAttribute('data-ks-copy');
+                    const snippet = getLoaderSnippet(hash);
+                    navigator.clipboard.writeText(snippet).catch(()=>{});
                     btn.style.color = 'var(--green)'; setTimeout(()=>{ btn.style.color=''; }, 1000);
                 });
             });
@@ -1794,29 +1796,44 @@ fn()`;
             if (!list) return;
             list.innerHTML = '<p class="dash-empty">Loading…</p>';
             const pw = localStorage.getItem('flurs_admin_pw') || '';
-            const data = await fetch('/api/keys', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'scriptanalytics', password: pw }),
-            }).then(r => r.json()).catch(() => ({}));
 
-            if (!data.ok || !data.scripts) {
-                list.innerHTML = '<p class="dash-empty">Failed to load analytics.</p>';
-                return;
-            }
+            const [keyData, pubData] = await Promise.all([
+                fetch('/api/keys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scriptanalytics', password: pw }),
+                }).then(r => r.json()).catch(() => ({})),
+                fetch('/api/uploadscript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'publicanalytics', password: pw }),
+                }).then(r => r.json()).catch(() => ({})),
+            ]);
 
-            const scripts = data.scripts;
-            const totalUses = scripts.reduce((s, x) => s + (x.useCount || 0), 0);
+            const keyScripts = (keyData.ok && keyData.scripts) ? keyData.scripts : [];
+            const pubScripts = (pubData.ok && pubData.scripts) ? pubData.scripts : [];
+            const totalUses = [...keyScripts, ...pubScripts].reduce((s, x) => s + (x.useCount || 0), 0);
+            const allSorted = [
+                ...keyScripts.map(s => ({...s, _type: 'key'})),
+                ...pubScripts.map(s => ({...s, _type: 'public', label: s.name, hash: s.id}))
+            ].sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
 
-            // Summary cards
             const grid = document.getElementById('analytics-summary-grid');
             if (grid) {
+                const topScript = allSorted[0];
                 grid.innerHTML = `
                     <div class="dash-stat-card" style="--card-accent:#7c6dfa;">
                         <div class="dash-stat-icon"><i class="fa-solid fa-shield-halved"></i></div>
                         <div class="dash-stat-body">
-                            <div class="dash-stat-value">${scripts.length}</div>
+                            <div class="dash-stat-value">${keyScripts.length}</div>
                             <div class="dash-stat-label">Key Scripts</div>
+                        </div>
+                    </div>
+                    <div class="dash-stat-card" style="--card-accent:#38bdf8;">
+                        <div class="dash-stat-icon"><i class="fa-solid fa-globe"></i></div>
+                        <div class="dash-stat-body">
+                            <div class="dash-stat-value">${pubScripts.length}</div>
+                            <div class="dash-stat-label">Public Scripts</div>
                         </div>
                     </div>
                     <div class="dash-stat-card" style="--card-accent:#34d399;">
@@ -1829,28 +1846,37 @@ fn()`;
                     <div class="dash-stat-card" style="--card-accent:#f59e0b;">
                         <div class="dash-stat-icon"><i class="fa-solid fa-fire"></i></div>
                         <div class="dash-stat-body">
-                            <div class="dash-stat-value">${scripts[0] ? escHtml(scripts[0].label) : '—'}</div>
+                            <div class="dash-stat-value">${topScript ? escHtml(topScript.label || topScript.name || '') : '—'}</div>
                             <div class="dash-stat-label">Most Used Script</div>
                         </div>
                     </div>
                 `;
             }
 
-            if (!scripts.length) {
-                list.innerHTML = '<p class="dash-empty">No key scripts yet.</p>';
+            if (!allSorted.length) {
+                list.innerHTML = '<p class="dash-empty">No scripts yet.</p>';
                 return;
             }
 
-            list.innerHTML = scripts.map(function(s) {
+            list.innerHTML = allSorted.map(function(s) {
                 const bar = Math.round(((s.useCount || 0) / Math.max(totalUses, 1)) * 100);
                 const lastUsed = s.lastUsed ? new Date(s.lastUsed).toLocaleString() : 'Never';
-                const users = (s.recentUsers || []).map(u => `<span class="dash-tag" style="font-size:0.7rem;">${escHtml(u.username)}</span>`).join('');
-                return `<div class="dash-script-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;cursor:pointer;" data-hash="${escHtml(s.hash)}" data-label="${escHtml(s.label)}">
+                const users = (s.recentUsers || []).map(u => `<span class="dash-tag" style="font-size:0.7rem;">${escHtml(u.username || 'unknown')}</span>`).join('');
+                const isKey = s._type === 'key';
+                const iconColor = isKey ? '#f59e0b' : '#38bdf8';
+                const iconClass = isKey ? 'fa-shield-halved' : 'fa-globe';
+                const typeBadge = isKey
+                    ? '<span style="font-size:0.65rem;background:rgba(245,158,11,0.12);color:#f59e0b;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem;">KEY</span>'
+                    : '<span style="font-size:0.65rem;background:rgba(56,189,248,0.12);color:#38bdf8;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem;">PUBLIC</span>';
+                const colorRgb = isKey ? '245,158,11' : '56,189,248';
+                const id = s.hash || s.id || '';
+                const lbl = s.label || s.name || 'Unnamed';
+                return `<div class="dash-script-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;cursor:pointer;" data-hash="${escHtml(id)}" data-label="${escHtml(lbl)}" data-type="${escHtml(s._type || 'key')}">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                         <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <div class="dash-script-row-icon" style="background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-shield-halved"></i></div>
+                            <div class="dash-script-row-icon" style="background:rgba(${colorRgb},0.1);border-color:rgba(${colorRgb},0.2);color:${iconColor};"><i class="fa-solid ${iconClass}"></i></div>
                             <div>
-                                <div class="dash-script-row-name">${escHtml(s.label)}</div>
+                                <div class="dash-script-row-name">${escHtml(lbl)}${typeBadge}</div>
                                 <div class="dash-script-row-meta" style="font-size:0.7rem;">Last used: ${lastUsed}</div>
                             </div>
                         </div>
@@ -1866,15 +1892,14 @@ fn()`;
                 </div>`;
             }).join('');
 
-            // Click to see detail
             list.querySelectorAll('.dash-script-row').forEach(function(row) {
                 row.addEventListener('click', function() {
-                    showAnalyticsDetail(row.dataset.hash, row.dataset.label);
+                    showAnalyticsDetail(row.dataset.hash, row.dataset.label, row.dataset.type);
                 });
             });
         }
 
-        async function showAnalyticsDetail(hash, label) {
+        async function showAnalyticsDetail(hash, label, type) {
             const card = document.getElementById('analytics-detail-card');
             const lbl  = document.getElementById('analytics-detail-label');
             const lst  = document.getElementById('analytics-detail-list');
@@ -1885,23 +1910,51 @@ fn()`;
             card.scrollIntoView({ behavior: 'smooth' });
 
             const pw = localStorage.getItem('flurs_admin_pw') || '';
-            const data = await fetch('/api/keys', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'scriptanalytics', password: pw, hash }),
-            }).then(r => r.json()).catch(() => ({}));
+            const isPublic = type === 'public';
+            let log = [];
 
-            const log = data.analytics?.usageLog || [];
+            if (isPublic) {
+                const d2 = await fetch('/api/uploadscript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getone', id: hash, password: pw }),
+                }).then(r => r.json()).catch(() => ({}));
+                log = d2.script?.usageLog || [];
+            } else {
+                const data = await fetch('/api/keys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scriptanalytics', password: pw, hash }),
+                }).then(r => r.json()).catch(() => ({}));
+                log = data.analytics?.usageLog || [];
+            }
+
             if (!log.length) {
                 lst.innerHTML = '<p class="dash-empty">No execution history yet.</p>';
                 return;
             }
+
             lst.innerHTML = log.map(function(e) {
+                const joinLink = (e.gameId && e.serverId)
+                    ? `https://www.roblox.com/games/${e.gameId}/game?gameInstanceId=${e.serverId}`
+                    : null;
+                const gameInfo = isPublic
+                    ? (e.gameName || e.gameId
+                        ? `<span style="color:var(--muted);font-size:0.72rem;">&#x1F3AE; ${escHtml(e.gameName || ('Game ' + e.gameId))}</span>`
+                        : '<span style="color:var(--muted);font-size:0.72rem;">Game: unknown</span>')
+                    : `<span style="font-size:0.72rem;color:var(--muted);">IP: ${escHtml(e.ip || '?')}</span>`;
+                const joinBtn = joinLink
+                    ? `<a href="${escHtml(joinLink)}" target="_blank" style="font-size:0.7rem;color:var(--accent2);text-decoration:none;background:rgba(124,109,250,0.1);padding:0.15rem 0.5rem;border-radius:4px;white-space:nowrap;">&#x1F517; Join Server</a>`
+                    : '';
                 return `<div class="dash-script-row" style="gap:1rem;">
                     <div class="dash-script-row-icon" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:var(--green);"><i class="fa-solid fa-user"></i></div>
                     <div style="flex:1;min-width:0;">
                         <div class="dash-script-row-name">${escHtml(e.username || 'unknown')}</div>
-                        <div class="dash-script-row-meta">${new Date(e.ts).toLocaleString()} &bull; IP: ${escHtml(e.ip || '?')}</div>
+                        <div class="dash-script-row-meta" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+                            <span>${new Date(e.ts).toLocaleString()}</span>
+                            ${gameInfo}
+                            ${joinBtn}
+                        </div>
                     </div>
                 </div>`;
             }).join('');
@@ -2053,20 +2106,18 @@ fn()`;
             const filter    = filterSel ? filterSel.value : '';
             const events    = filter ? allEvents.filter(e => e.type === filter) : allEvents;
 
-            // Update badge
             const badge = document.getElementById('sec-log-badge');
             if (badge) badge.textContent = allEvents.length;
 
-            // Stats
             const statsGrid = document.getElementById('seclog-stats-grid');
             if (statsGrid) {
                 const counts = {};
                 allEvents.forEach(function(e) { counts[e.type] = (counts[e.type]||0)+1; });
                 statsGrid.innerHTML = [
-                    { key: 'invalid_key',         label: 'Invalid Keys',      color: '#ef4444', icon: 'fa-ban' },
-                    { key: 'hwid_mismatch',        label: 'HWID Mismatches',  color: '#f97316', icon: 'fa-fingerprint' },
-                    { key: 'rate_limited',         label: 'Rate Limited',     color: '#eab308', icon: 'fa-gauge-high' },
-                    { key: 'bad_admin_password',   label: 'Bad Passwords',    color: '#a855f7', icon: 'fa-lock' },
+                    { key: 'invalid_key',       label: 'Invalid Keys',     color: '#ef4444', icon: 'fa-ban' },
+                    { key: 'hwid_mismatch',      label: 'HWID Mismatches', color: '#f97316', icon: 'fa-fingerprint' },
+                    { key: 'rate_limited',       label: 'Rate Limited',    color: '#eab308', icon: 'fa-gauge-high' },
+                    { key: 'bad_admin_password', label: 'Bad Passwords',   color: '#a855f7', icon: 'fa-lock' },
                 ].map(function(item) {
                     return `<div class="dash-stat-card" style="--card-accent:${item.color};">
                         <div class="dash-stat-icon"><i class="fa-solid ${item.icon}"></i></div>
@@ -2084,13 +2135,13 @@ fn()`;
             }
 
             const typeConfig = {
-                invalid_key:         { color: '#ef4444', icon: 'fa-ban',           label: 'Invalid Key' },
-                hwid_mismatch:       { color: '#f97316', icon: 'fa-fingerprint',   label: 'HWID Mismatch' },
-                revoked_key_used:    { color: '#ef4444', icon: 'fa-circle-xmark',  label: 'Revoked Key Used' },
-                blacklisted_key_used:{ color: '#ef4444', icon: 'fa-skull',         label: 'Blacklisted Key' },
-                rate_limited:        { color: '#eab308', icon: 'fa-gauge-high',    label: 'Rate Limited' },
-                bad_admin_password:  { color: '#a855f7', icon: 'fa-lock',          label: 'Bad Admin Password' },
-                wrong_script_key:    { color: '#f97316', icon: 'fa-link-slash',    label: 'Wrong Script' },
+                invalid_key:          { color: '#ef4444', icon: 'fa-ban',           label: 'Invalid Key' },
+                hwid_mismatch:        { color: '#f97316', icon: 'fa-fingerprint',   label: 'HWID Mismatch' },
+                revoked_key_used:     { color: '#ef4444', icon: 'fa-circle-xmark',  label: 'Revoked Key Used' },
+                blacklisted_key_used: { color: '#ef4444', icon: 'fa-skull',         label: 'Blacklisted Key' },
+                rate_limited:         { color: '#eab308', icon: 'fa-gauge-high',    label: 'Rate Limited' },
+                bad_admin_password:   { color: '#a855f7', icon: 'fa-lock',          label: 'Bad Admin Password' },
+                wrong_script_key:     { color: '#f97316', icon: 'fa-link-slash',    label: 'Wrong Script' },
             };
 
             list.innerHTML = events.map(function(e) {
@@ -2106,7 +2157,7 @@ fn()`;
                     </div>
                     <div style="flex:1;min-width:0;">
                         <div class="dash-script-row-name" style="color:${cfg.color};">${cfg.label}</div>
-                        <div class="dash-script-row-meta">${new Date(e.ts).toLocaleString()} &bull; ${escHtml(extra.join(' &bull; '))}</div>
+                        <div class="dash-script-row-meta">${new Date(e.ts).toLocaleString()} &bull; ${escHtml(extra.join(' • '))}</div>
                     </div>
                 </div>`;
             }).join('');
@@ -2123,7 +2174,6 @@ fn()`;
             if (sb)   sb.style.display = 'none';
             if (gate) gate.style.display = 'flex';
 
-            // If already auto-unlocked from saved password
             const panel = document.getElementById('admin-panel');
             if (panel && panel.style.display && panel.style.display !== 'none') {
                 onDashboardUnlocked();
@@ -2144,10 +2194,10 @@ fn()`;
     <script>
     /* ── MOBILE MENU ──────────────────────────────────────────────────────── */
     (function() {
-        const burgerBtn  = document.getElementById('burger-btn');
-        const closeBtn   = document.getElementById('mobile-menu-close');
-        const overlay    = document.getElementById('mobile-menu-overlay');
-        const menu       = document.getElementById('mobile-menu');
+        const burgerBtn   = document.getElementById('burger-btn');
+        const closeBtn    = document.getElementById('mobile-menu-close');
+        const overlay     = document.getElementById('mobile-menu-overlay');
+        const menu        = document.getElementById('mobile-menu');
         const mobileLinks = document.querySelectorAll('.mobile-nav-link');
 
         function openMenu() {
@@ -2171,7 +2221,6 @@ fn()`;
 
         mobileLinks.forEach(function(link) {
             link.addEventListener('click', function() {
-                // Sync active state with desktop nav
                 mobileLinks.forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
                 const page = link.getAttribute('data-page');
@@ -2184,7 +2233,6 @@ fn()`;
             });
         });
 
-        // Sync mobile active state when desktop nav changes
         document.querySelectorAll('.nav-link').forEach(function(link) {
             link.addEventListener('click', function() {
                 const page = link.getAttribute('data-page');
@@ -2194,9 +2242,8 @@ fn()`;
             });
         });
 
-        // Wire mobile social buttons to same targets as desktop
-        const discordBtn = document.getElementById('download-btn');
-        const tiktokBtn  = document.getElementById('tiktok-btn');
+        const discordBtn    = document.getElementById('download-btn');
+        const tiktokBtn     = document.getElementById('tiktok-btn');
         const mobileDiscord = document.getElementById('mobile-discord-btn');
         const mobileTiktok  = document.getElementById('mobile-tiktok-btn');
         if (mobileDiscord && discordBtn) {

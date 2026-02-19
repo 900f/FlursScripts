@@ -161,6 +161,63 @@ export default async function handler(req, res) {
             return res.status(200).json({ ok: true });
         }
 
+        // ── TRACK PUBLIC SCRIPT USE (called from Roblox loadstring) ───────
+        if (action === 'trackpublic') {
+            const { id, username, gameId, gameName, serverId } = req.body || {};
+            if (!id) return res.status(400).json({ error: 'Missing id' });
+            try {
+                const { blobs: mb } = await list({ prefix: `scriptcards/${id}.meta.json` });
+                const metaBlob = mb.find(b => b.pathname === `scriptcards/${id}.meta.json`);
+                if (!metaBlob) return res.status(404).json({ error: 'Script not found' });
+                const meta = await fetch(metaBlob.url).then(r => r.json());
+                meta.useCount = (meta.useCount || 0) + 1;
+                meta.usageLog = meta.usageLog || [];
+                meta.usageLog.unshift({
+                    ts: Date.now(),
+                    username: username || 'unknown',
+                    gameId: gameId || null,
+                    gameName: gameName || null,
+                    serverId: serverId || null,
+                });
+                if (meta.usageLog.length > 100) meta.usageLog = meta.usageLog.slice(0, 100);
+                meta.lastUsed = Date.now();
+                await put(`scriptcards/${id}.meta.json`, JSON.stringify(meta), {
+                    access: 'public', contentType: 'application/json', addRandomSuffix: false,
+                });
+                return res.status(200).json({ ok: true });
+            } catch (e) {
+                console.error('trackpublic error:', e);
+                return res.status(500).json({ error: 'Track failed' });
+            }
+        }
+
+        // ── LIST PUBLIC ANALYTICS (admin only) ────────────────────────────
+        if (action === 'publicanalytics') {
+            if (!password || password !== ADMIN_PASSWORD) {
+                recordFailure(ip);
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+            clearFailures(ip);
+            const { blobs } = await list({ prefix: 'scriptcards/' });
+            const metaBlobs = blobs.filter(b => b.pathname.endsWith('.meta.json'));
+            const scripts = await Promise.all(
+                metaBlobs.map(async b => {
+                    try { return await fetch(b.url).then(r => r.json()); } catch { return null; }
+                })
+            );
+            const summary = scripts
+                .filter(Boolean)
+                .map(s => ({
+                    id:          s.id,
+                    name:        s.name,
+                    useCount:    s.useCount  || 0,
+                    lastUsed:    s.lastUsed  || null,
+                    recentUsers: (s.usageLog || []).slice(0, 5),
+                }))
+                .sort((a, b) => b.useCount - a.useCount);
+            return res.status(200).json({ ok: true, scripts: summary });
+        }
+
         // ── LIST — public, no password needed ─────────────────────────────
         if (action === 'list') {
             const { blobs }   = await list({ prefix: 'scriptcards/' });

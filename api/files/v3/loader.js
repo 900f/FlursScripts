@@ -106,9 +106,12 @@ rawset(_ENV, "warn",          function(...) _FLURS_KICK("warn blocked")  end)
 rawset(_ENV, "printidentity", function()    _FLURS_KICK("printidentity blocked") end)
 
 -- Block string.dump (used by script dumpers to get bytecode)
-if rawget(string, "dump") then
-    rawset(string, "dump", function() _FLURS_KICK("string.dump blocked") end)
-end
+-- Note: string table is read-only in Roblox, so we use pcall
+pcall(function()
+    if rawget(string, "dump") then
+        rawset(string, "dump", function() _FLURS_KICK("string.dump blocked") end)
+    end
+end)
 
 -- Block executor dump functions
 local _dumpFns = {
@@ -132,15 +135,18 @@ rawset(_ENV, "tostring", function(v)
 end)
 
 -- Block string.format %q / %s on function results (another extraction technique)
+-- Note: string table is read-only in Roblox, wrap in pcall
 local _osf = string.format
-rawset(string, "format", function(fmt, ...)
-    local args = {...}
-    for i, v in ipairs(args) do
-        if type(v) == "function" then
-            _FLURS_KICK("string.format function leak blocked")
+pcall(function()
+    rawset(string, "format", function(fmt, ...)
+        local args = {...}
+        for i, v in ipairs(args) do
+            if type(v) == "function" then
+                _FLURS_KICK("string.format function leak blocked")
+            end
         end
-    end
-    return _osf(fmt, ...)
+        return _osf(fmt, ...)
+    end)
 end)
 
 -- ============================================================
