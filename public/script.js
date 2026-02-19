@@ -4,7 +4,6 @@ const navLinks = document.querySelectorAll(’.nav-link’);
 const pages = document.querySelectorAll(’.page’);
 const navbar = document.querySelector(’.navbar’);
 
-
 // Handle navigation clicks with smooth transitions
 navLinks.forEach(link => {
     link.addEventListener('click', function(e) {
