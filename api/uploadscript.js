@@ -1,9 +1,8 @@
-// api/uploadscript.js
 import { sql } from '../../lib/db';
 import { put, del } from '@vercel/blob';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD not set');
+if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not set');
 
 const attempts = new Map();
 const MAX_TRIES = 10;
@@ -51,16 +50,16 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-  if (isRateLimited(ip)) return res.status(429).json({ error: 'Rate limited' });
+  if (isRateLimited(ip)) return res.status(429).json({ error: 'Rate limited – try again in 15 minutes' });
 
   let body;
   try {
     body = await req.json();
   } catch {
-    return res.status(400).json({ error: 'Invalid JSON' });
+    return res.status(400).json({ error: 'Invalid JSON body' });
   }
 
-  const { action, password, name, description, loadstring, tags, imageBase64, imageType } = body;
+  const { action, password, name, description, loadstring, tags, imageBase64, imageType, id } = body;
 
   const needsAuth = ['auth', 'publish', 'delete', 'getone', 'update'].includes(action);
   if (needsAuth) {
@@ -78,14 +77,14 @@ export default async function handler(req, res) {
 
     if (action === 'publish') {
       if (!name || !loadstring || !imageBase64) {
-        return res.status(400).json({ error: 'Missing name, loadstring or imageBase64' });
+        return res.status(400).json({ error: 'Missing required fields: name, loadstring, imageBase64' });
       }
 
-      const id = generateId();
+      const newId = generateId();
       const ext = imageType === 'image/png' ? 'png' : 'jpg';
 
       const imageBuffer = Buffer.from(imageBase64, 'base64');
-      const imageBlob = await put(`scriptcards/${id}.${ext}`, imageBuffer, {
+      const imageBlob = await put(`scriptcards/${newId}.${ext}`, imageBuffer, {
         access: 'public',
         contentType: imageType || 'image/jpeg',
         addRandomSuffix: false,
@@ -96,56 +95,64 @@ export default async function handler(req, res) {
           id, name, description, loadstring, tags, image_url, created_at,
           use_count, last_used, usage_log
         ) VALUES (
-          ${id}, ${name}, ${description || ''}, ${loadstring},
-          ${tags || []}::text[], ${imageBlob.url}, ${Date.now()},
-          0, NULL, '[]'::jsonb
+          ${newId},
+          ${name},
+          ${description || ''},
+          ${loadstring},
+          ${tags || []}::text[],
+          ${imageBlob.url},
+          ${Date.now()},
+          0,
+          NULL,
+          '[]'::jsonb
         )
       `;
 
-      return res.status(200).json({ ok: true, id });
+      return res.status(200).json({ ok: true, id: newId });
     }
 
     if (action === 'delete') {
-      const { id } = body;
       if (!id) return res.status(400).json({ error: 'Missing id' });
 
       const rows = await sql`SELECT image_url FROM public_scripts WHERE id = ${id}`;
-      if (rows[0]?.image_url) await del(rows[0].image_url);
+      if (rows[0]?.image_url) {
+        await del(rows[0].image_url);
+      }
 
       await sql`DELETE FROM public_scripts WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
     }
 
     if (action === 'getone') {
-      const { id } = body;
       if (!id) return res.status(400).json({ error: 'Missing id' });
 
       const rows = await sql`SELECT * FROM public_scripts WHERE id = ${id}`;
-      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      if (!rows.length) return res.status(404).json({ error: 'Script not found' });
 
       return res.status(200).json({ ok: true, script: rows[0] });
     }
 
     if (action === 'update') {
-      const { id, name, description, loadstring, tags, imageBase64, imageType } = body;
       if (!id || !name || !loadstring) return res.status(400).json({ error: 'Missing required fields' });
 
-      const exRows = await sql`SELECT image_url, created_at, use_count, last_used, usage_log FROM public_scripts WHERE id = ${id}`;
-      const ex = exRows[0] || {};
+      const existingRows = await sql`SELECT image_url, created_at, use_count, last_used, usage_log FROM public_scripts WHERE id = ${id}`;
+      const existing = existingRows[0] || {};
 
-      let imageUrl = ex.image_url;
+      let imageUrl = existing.image_url;
 
       if (imageBase64) {
-        if (ex.image_url) await del(ex.image_url);
+        if (existing.image_url) {
+          await del(existing.image_url);
+        }
 
         const ext = imageType === 'image/png' ? 'png' : 'jpg';
-        const buf = Buffer.from(imageBase64, 'base64');
-        const blob = await put(`scriptcards/${id}.${ext}`, buf, {
+        const imageBuffer = Buffer.from(imageBase64, 'base64');
+        const imageBlob = await put(`scriptcards/${id}.${ext}`, imageBuffer, {
           access: 'public',
           contentType: imageType || 'image/jpeg',
           addRandomSuffix: false,
         });
-        imageUrl = blob.url;
+        imageUrl = imageBlob.url;
       }
 
       await sql`
@@ -153,12 +160,16 @@ export default async function handler(req, res) {
           id, name, description, loadstring, tags, image_url, created_at,
           use_count, last_used, usage_log
         ) VALUES (
-          ${id}, ${name}, ${description || ''}, ${loadstring},
-          ${tags || []}::text[], ${imageUrl},
-          ${ex.created_at || Date.now()},
-          ${ex.use_count || 0},
-          ${ex.last_used},
-          ${ex.usage_log || '[]'::jsonb}
+          ${id},
+          ${name},
+          ${description || ''},
+          ${loadstring},
+          ${tags || []}::text[],
+          ${imageUrl},
+          ${existing.created_at || Date.now()},
+          ${existing.use_count || 0},
+          ${existing.last_used},
+          ${existing.usage_log || '[]'::jsonb}
         )
         ON CONFLICT (id) DO UPDATE SET
           name        = EXCLUDED.name,
@@ -173,22 +184,21 @@ export default async function handler(req, res) {
     }
 
     if (action === 'trackpublic') {
-      const { id, username, gameId, gameName, serverId } = body;
       if (!id) return res.status(400).json({ error: 'Missing id' });
 
-      const newLog = {
+      const newLogEntry = {
         ts: Date.now(),
-        username: username || 'unknown',
-        gameId: gameId || null,
-        gameName: gameName || null,
-        serverId: serverId || null,
+        username: body.username || 'unknown',
+        gameId: body.gameId || null,
+        gameName: body.gameName || null,
+        serverId: body.serverId || null
       };
 
       await sql`
         UPDATE public_scripts
         SET 
           use_count = use_count + 1,
-          usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newLog)}::jsonb),
+          usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newLogEntry)}::jsonb),
           last_used = ${Date.now()}
         WHERE id = ${id}
       `;
@@ -209,12 +219,12 @@ export default async function handler(req, res) {
         ORDER BY use_count DESC
       `;
 
-      const summary = rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        useCount: r.use_count,
-        lastUsed: r.last_used,
-        recentUsers: JSON.parse(r.usage_log || '[]').slice(0, 5)
+      const summary = rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        useCount: row.use_count,
+        lastUsed: row.last_used,
+        recentUsers: JSON.parse(row.usage_log || '[]').slice(0, 5)
       }));
 
       return res.status(200).json({ ok: true, scripts: summary });
@@ -222,18 +232,20 @@ export default async function handler(req, res) {
 
     if (action === 'list') {
       const rows = await sql`
-        SELECT * FROM public_scripts ORDER BY created_at DESC
+        SELECT id, name, description, loadstring, tags, image_url, created_at, use_count, last_used
+        FROM public_scripts
+        ORDER BY created_at DESC
       `;
       return res.status(200).json({ ok: true, scripts: rows });
     }
 
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
-    console.error('[uploadscript]', err);
+    console.error('uploadscript error:', err);
     return res.status(500).json({
-      error: 'Server error',
+      error: 'Internal Server Error',
       message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      code: err.code || 'unknown'
     });
   }
 }
