@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     const { image_data, image_type } = rows[0];
 
     res.setHeader('Content-Type', image_type || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.status(200).send(Buffer.from(image_data));
   } catch (err) {
     console.error('[scriptimage] error:', err);
