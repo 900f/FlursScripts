@@ -1,5 +1,5 @@
-// api/admin.js
-import { sql } from '../../lib/db';
+// pages/api/admin.js
+import { sql } from '../../lib/db.js';
 
 const attempts = new Map();
 const MAX_ATTEMPTS = 10;
@@ -27,13 +27,8 @@ function clearFailures(ip) {
 }
 
 async function getMeta(hash) {
-  try {
-    const rows = await sql`SELECT * FROM scripts WHERE hash = ${hash}`;
-    return rows[0] || null;
-  } catch (err) {
-    console.error('[getMeta]', err);
-    throw err;
-  }
+  const rows = await sql`SELECT * FROM scripts WHERE hash = ${hash}`;
+  return rows[0] || null;
 }
 
 export default async function handler(req, res) {
@@ -44,7 +39,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server misconfiguration: ADMIN_PASSWORD not set' });
   }
 
-  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://www.flurs.xyz';
   const origin = req.headers.origin || '';
   if (origin && origin !== allowedOrigin) {
     return res.status(403).json({ error: 'Forbidden origin' });
@@ -60,7 +55,7 @@ export default async function handler(req, res) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 
   if (isRateLimited(ip)) {
-    return res.status(429).json({ error: 'Rate limited – try again in 15 minutes' });
+    return res.status(429).json({ error: 'Rate limited - try again in 15 minutes' });
   }
 
   const body = req.body;
@@ -89,7 +84,7 @@ export default async function handler(req, res) {
 
       await sql`
         UPDATE scripts
-        SET 
+        SET
           use_count = use_count + 1,
           usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newLog)}::jsonb),
           last_used = ${Date.now()}
@@ -135,20 +130,13 @@ export default async function handler(req, res) {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
       const meta = await getMeta(hash);
       if (!meta) return res.status(404).json({ error: 'Script not found' });
-
-      return res.status(200).json({
-        ok: true,
-        hash,
-        label: meta.label || 'Unnamed',
-        content: meta.content,
-      });
+      return res.status(200).json({ ok: true, hash, label: meta.label || 'Unnamed', content: meta.content });
     }
 
     if (action === 'rename') {
       if (!hash || !label) return res.status(400).json({ error: 'Missing hash or label' });
       const existing = await getMeta(hash);
       if (!existing) return res.status(404).json({ error: 'Script not found' });
-
       await sql`UPDATE scripts SET label = ${label.trim()} WHERE hash = ${hash}`;
       return res.status(200).json({ ok: true });
     }
@@ -165,10 +153,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     console.error('[admin handler]', err);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    return res.status(500).json({ error: 'Internal Server Error', message: err.message });
   }
 }

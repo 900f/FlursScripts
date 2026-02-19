@@ -1,94 +1,71 @@
-// api/files/v3/loader.js
-// Serves a Lua loader file per script hash — key protected.
-// Enhanced anti-print, anti-dump, and anti-browser protection.
-//
-// URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
-// Usage:
-//   script_key="FLURS-XXXX-XXXX-XXXX-XXXX"
-//   loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()
-
+// pages/api/files/v3/loader.js
+// Serves a Lua loader that key-validates and pulls script content from DB.
 const RATE_LIMIT_WINDOW = 15 * 1000;
 const RATE_LIMIT_MAX    = 20;
 const rateLimitStore    = new Map();
 
 function getIP(req) {
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-        || req.socket?.remoteAddress
-        || 'unknown';
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 }
 
 function isRateLimited(ip) {
-    const now   = Date.now();
-    const entry = rateLimitStore.get(ip) || { count: 0, start: now };
-    if (now - entry.start > RATE_LIMIT_WINDOW) {
-        rateLimitStore.set(ip, { count: 1, start: now });
-        return false;
-    }
-    if (entry.count >= RATE_LIMIT_MAX) return true;
-    entry.count++;
-    rateLimitStore.set(ip, entry);
+  const now   = Date.now();
+  const entry = rateLimitStore.get(ip) || { count: 0, start: now };
+  if (now - entry.start > RATE_LIMIT_WINDOW) {
+    rateLimitStore.set(ip, { count: 1, start: now });
     return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return true;
+  entry.count++;
+  rateLimitStore.set(ip, entry);
+  return false;
 }
 
-// ── Extremely strict UA check ──────────────────────────────────────────────
 const BLOCKED_UA_PATTERNS = [
-    'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave',
-    'wget', 'curl', 'python', 'postman', 'insomnia', 'httpie', 'axios',
-    'node', 'fetch', 'go-http', 'java', 'okhttp', 'dart', 'php',
-    'perl', 'ruby', 'powershell', 'libwww', 'pycurl', 'aiohttp',
-    'scrapy', 'mechanize', 'requests', 'http-client', 'apache',
-    'burpsuite', 'burp', 'wireshark', 'fiddler', 'charles', 'mitmproxy',
-    'nmap', 'hydra', 'sqlmap', 'nikto', 'metasploit', 'zap',
+  'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave',
+  'wget', 'curl', 'python', 'postman', 'insomnia', 'httpie', 'axios',
+  'node', 'fetch', 'go-http', 'java', 'okhttp', 'dart', 'php',
+  'perl', 'ruby', 'powershell', 'libwww', 'pycurl', 'aiohttp',
+  'scrapy', 'mechanize', 'requests', 'http-client', 'apache',
+  'burpsuite', 'burp', 'wireshark', 'fiddler', 'charles', 'mitmproxy',
+  'nmap', 'hydra', 'sqlmap', 'nikto', 'metasploit', 'zap',
 ];
 
 function isForbiddenRequest(req) {
-    const ua = (req.headers['user-agent'] || '').toLowerCase().trim();
-
-    // Allow Roblox / WinINet (executor http stack)
-    if (ua.includes('roblox') || ua.includes('wininet')) return false;
-
-    // Block all known patterns
-    for (const p of BLOCKED_UA_PATTERNS) {
-        if (ua.includes(p)) return true;
-    }
-
-    // Block proxy/interception headers
-    if (req.headers['via']) return true;
-
-    // Any non-empty unknown UA → block
-    if (ua.length > 0) return true;
-
-    return false;
+  const ua = (req.headers['user-agent'] || '').toLowerCase().trim();
+  if (ua.includes('roblox') || ua.includes('wininet')) return false;
+  for (const p of BLOCKED_UA_PATTERNS) {
+    if (ua.includes(p)) return true;
+  }
+  if (req.headers['via']) return true;
+  if (ua.length > 0) return true;
+  return false;
 }
 
 export default async function handler(req, res) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
-    if (req.method !== 'GET') return res.status(405).end('-- Method Not Allowed');
-    if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
+  if (req.method !== 'GET') return res.status(405).end('-- Method Not Allowed');
+  if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
 
-    const ip = getIP(req);
-    if (isRateLimited(ip)) return res.status(429).end('-- rate_limited');
+  const ip = getIP(req);
+  if (isRateLimited(ip)) return res.status(429).end('-- rate_limited');
 
-    const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
-    const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-    if (!hash) return res.status(400).end('-- invalid_hash');
+  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
+  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
+  if (!hash) return res.status(400).end('-- invalid_hash');
 
-    const API = 'https://api.flurs.xyz/api/keys';
+  const API = process.env.ALLOWED_ORIGIN
+    ? `${process.env.ALLOWED_ORIGIN}/api/keys`
+    : 'https://www.flurs.xyz/api/keys';
 
-    // ── Generated Lua loader with extreme anti-print/dump protection ────────
-    const lua = `-- Flurs Secure Loader v3 | https://flurs.xyz
+  const lua = `-- Flurs Secure Loader v3 | https://flurs.xyz
 do
 local _hash = "${hash}"
 local _api  = "${API}"
 
--- ============================================================
--- ANTI-PRINT / ANTI-DUMP / ANTI-INSPECT PROTECTION LAYER
--- Triggers an immediate kick on ANY attempt to dump or print
--- the protected script content.
--- ============================================================
 local _ENV   = getfenv and getfenv(0) or _G
 local _ps    = game:GetService("Players")
 local _lp    = _ps.LocalPlayer
@@ -100,20 +77,16 @@ local function _FLURS_KICK(reason)
     while true do task.wait(9e9) end
 end
 
--- Poison print/warn immediately so if anyone wraps and calls print() they get kicked
 rawset(_ENV, "print",         function(...) _FLURS_KICK("print blocked") end)
 rawset(_ENV, "warn",          function(...) _FLURS_KICK("warn blocked")  end)
 rawset(_ENV, "printidentity", function()    _FLURS_KICK("printidentity blocked") end)
 
--- Block string.dump (used by script dumpers to get bytecode)
--- Note: string table is read-only in Roblox, so we use pcall
 pcall(function()
     if rawget(string, "dump") then
         rawset(string, "dump", function() _FLURS_KICK("string.dump blocked") end)
     end
 end)
 
--- Block executor dump functions
 local _dumpFns = {
     "getscriptclosure","getscriptfunction","dumpstring",
     "decompile","getfuncs","getproto","getconstants","getupvalues",
@@ -121,37 +94,16 @@ local _dumpFns = {
 }
 for _, fn in ipairs(_dumpFns) do
     if rawget(_ENV, fn) ~= nil then
-        rawset(_ENV, fn, function(...)
-            _FLURS_KICK(fn .. " blocked")
-        end)
+        rawset(_ENV, fn, function(...) _FLURS_KICK(fn .. " blocked") end)
     end
 end
 
--- Block tostring on functions
 local _ots = rawget(_ENV, "tostring") or tostring
 rawset(_ENV, "tostring", function(v)
     if type(v) == "function" then return "[protected]" end
     return _ots(v)
 end)
 
--- Block string.format %q / %s on function results (another extraction technique)
--- Note: string table is read-only in Roblox, wrap in pcall
-local _osf = string.format
-pcall(function()
-    rawset(string, "format", function(fmt, ...)
-        local args = {...}
-        for i, v in ipairs(args) do
-            if type(v) == "function" then
-                _FLURS_KICK("string.format function leak blocked")
-            end
-        end
-        return _osf(fmt, ...)
-    end)
-end)
-
--- ============================================================
--- KEY VALIDATION
--- ============================================================
 local key = (getgenv and getgenv().script_key)
          or (genv    and genv().script_key)
          or (getfenv and getfenv().script_key)
@@ -160,12 +112,10 @@ if not key or key == "" then
     error("[Flurs] No key set. Do this first:\\n  script_key=\\"YOUR-FLURS-KEY\\"", 0)
 end
 
--- Get HWID
 local ok_hwid, hwid = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
 end)
 
--- Get Roblox username for logging
 local ok_name, username = pcall(function()
     return _lp and _lp.Name or "unknown"
 end)
@@ -207,20 +157,14 @@ if not _data.ok then
     error("[Flurs] " .. tostring(_data.error or "Access denied"), 0)
 end
 
--- ============================================================
--- EXECUTE PROTECTED CONTENT
--- The content runs in the same poisoned environment —
--- any print/dump attempt inside it is also trapped.
--- ============================================================
 local _fn, _err = loadstring(_data.content)
 if not _fn then error("[Flurs] " .. tostring(_err), 0) end
 
 local _runOk, _runErr = pcall(_fn)
--- Silent fail — never expose error text that could leak source info
 
 end -- do
 `;
 
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(lua);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  return res.status(200).end(lua);
 }

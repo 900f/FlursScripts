@@ -3,7 +3,6 @@
   "rewrites": [
     { "source": "/files/v2/loader/:hash.lua",     "destination": "/api/files/v2/loader" },
     { "source": "/api/files/v2/loader/:hash.lua", "destination": "/api/files/v2/loader" },
-    { "source": "/api/loader/:hash.lua",          "destination": "/api/loader" },
     { "source": "/files/v3/loader/:hash*.lua",    "destination": "/api/files/v3/loader" }
   ],
   "headers": [

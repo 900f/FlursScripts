@@ -1,7 +1,5 @@
-// api/script.js
-// Serves hosted Lua scripts at /api/<hash>.lua
-// Blocks browser access, allows Roblox executors
-
+// pages/api/script.js
+// Serves hosted Lua scripts - blocks browsers, allows Roblox executors
 import { list } from '@vercel/blob';
 
 const BLOCKED_UA_PATTERNS = [
@@ -12,11 +10,11 @@ const BLOCKED_UA_PATTERNS = [
 
 function isAllowedRequest(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
-  if (!ua) return true; // no UA = likely an executor
+  if (!ua) return true;
   for (const pattern of BLOCKED_UA_PATTERNS) {
     if (ua.includes(pattern)) return false;
   }
-  return true; // unknown UA = allow
+  return true;
 }
 
 export default async function handler(req, res) {
@@ -24,7 +22,6 @@ export default async function handler(req, res) {
     return res.status(405).end('Method Not Allowed');
   }
 
-  // Extract hash from URL: /api/abc123.lua → abc123
   const url = req.url || '';
   const match = url.match(/\/api\/([a-z0-9]+)\.lua/i);
   if (!match) {
@@ -33,14 +30,10 @@ export default async function handler(req, res) {
 
   const hash = match[1].toLowerCase();
 
-  // Block browsers
   if (!isAllowedRequest(req)) {
-    return res.status(403)
-      .setHeader('Content-Type', 'text/plain')
-      .end('403 Forbidden');
+    return res.status(403).setHeader('Content-Type', 'text/plain').end('403 Forbidden');
   }
 
-  // Find the blob for this hash
   try {
     const { blobs } = await list({ prefix: `scripts/${hash}.lua` });
     const blob = blobs.find(b => b.pathname === `scripts/${hash}.lua`);
@@ -49,7 +42,6 @@ export default async function handler(req, res) {
       return res.status(404).end('-- Script not found');
     }
 
-    // Fetch the content from blob storage and pipe it back
     const response = await fetch(blob.url);
     const content = await response.text();
 

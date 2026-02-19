@@ -1,6 +1,5 @@
-// api/keys.js
-
-import { sql } from '../../lib/db';
+// pages/api/keys.js
+import { sql } from '../../lib/db.js';
 import crypto from 'crypto';
 
 const attempts = new Map();
@@ -50,20 +49,12 @@ async function logSecurityEvent(type, details) {
 async function getSecurityLog() {
   try {
     const rows = await sql`
-      SELECT ts, type, details
-      FROM security_log
-      ORDER BY ts DESC
-      LIMIT ${SEC_LOG_MAX}
+      SELECT ts, type, details FROM security_log ORDER BY ts DESC LIMIT ${SEC_LOG_MAX}
     `;
     return rows;
   } catch {
     return [];
   }
-}
-
-function generateKey() {
-  const seg = () => crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `FLURS-${seg()}-${seg()}-${seg()}-${seg()}`;
 }
 
 function generateHash() {
@@ -107,10 +98,7 @@ async function saveKey(keyId, data) {
 }
 
 async function getAllKeys() {
-  return await sql`
-    SELECT * FROM script_keys
-    ORDER BY created_at DESC
-  `;
+  return await sql`SELECT * FROM script_keys ORDER BY created_at DESC`;
 }
 
 async function getScriptMeta(hash) {
@@ -118,62 +106,19 @@ async function getScriptMeta(hash) {
   return rows[0] || null;
 }
 
-async function saveScriptMeta(hash, meta) {
-  await sql`
-    INSERT INTO scripts (
-      hash, label, content, created_at, use_count, last_used, usage_log
-    ) VALUES (
-      ${hash},
-      ${meta.label || 'Unnamed'},
-      ${meta.content},
-      ${meta.createdAt || Date.now()},
-      ${meta.useCount || 0},
-      ${meta.lastUsed || null},
-      ${JSON.stringify(meta.usageLog || [])}::jsonb
-    )
-    ON CONFLICT (hash) DO UPDATE SET
-      label       = EXCLUDED.label,
-      content     = EXCLUDED.content,
-      use_count   = EXCLUDED.use_count,
-      last_used   = EXCLUDED.last_used,
-      usage_log   = EXCLUDED.usage_log
-  `;
-}
-
 async function getAllScripts() {
-  return await sql`
-    SELECT * FROM scripts
-    ORDER BY created_at DESC
-  `;
-}
-
-async function trackScriptUse(hash, username, ip) {
-  try {
-    const meta = await getScriptMeta(hash);
-    if (!meta) return;
-
-    const newEntry = { ts: Date.now(), username: username || 'unknown', ip };
-
-    await sql`
-      UPDATE scripts
-      SET 
-        use_count = use_count + 1,
-        usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newEntry)}::jsonb),
-        last_used = ${Date.now()}
-      WHERE hash = ${hash}
-    `;
-  } catch (e) {
-    console.error('trackScriptUse error:', e);
-  }
+  return await sql`SELECT * FROM scripts ORDER BY created_at DESC`;
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
     return res.status(500).json({ error: 'Server misconfiguration: ADMIN_PASSWORD not set' });
   }
 
-  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://www.flurs.xyz';
   const origin = req.headers.origin || '';
   if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });
 
@@ -189,10 +134,10 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   }
 
-  const body = req.method === 'POST' ? req.body : {};
-  const { action, password, ...params } = body;
+  const body = req.method === 'POST' ? req.body : req.query;
+  const { action, password, ...params } = body || {};
 
-  // ── Public key validation (GET or POST) ────────────────────────────────
+  // Public key validation
   if (action === 'validate') {
     const { key, hwid, scriptHash, username } = params;
 
@@ -212,36 +157,45 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Key is blacklisted' });
     }
 
-    if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
+    if (keyData.expires_at && Date.now() > keyData.expires_at) {
       await logSecurityEvent('expired_key_used', { ip, key, scriptHash });
       return res.status(403).json({ error: 'Key has expired' });
     }
 
-    if (keyData.maxUses && (keyData.useCount || 0) >= keyData.maxUses) {
+    if (keyData.max_uses && (keyData.use_count || 0) >= keyData.max_uses) {
       await logSecurityEvent('max_uses_reached', { ip, key, scriptHash });
       return res.status(403).json({ error: 'Key has reached maximum uses' });
     }
 
-    if (keyData.scriptHash && keyData.scriptHash !== scriptHash) {
-      await logSecurityEvent('wrong_script_key', { ip, key, scriptHash, expected: keyData.scriptHash });
+    if (keyData.script_hash && keyData.script_hash !== scriptHash) {
+      await logSecurityEvent('wrong_script_key', { ip, key, scriptHash, expected: keyData.script_hash });
       return res.status(403).json({ error: 'Key is not valid for this script' });
     }
 
-    // HWID check / update
     if (keyData.hwid && keyData.hwid !== hwid) {
       await logSecurityEvent('hwid_mismatch', { ip, key, oldHwid: keyData.hwid, newHwid: hwid });
       return res.status(403).json({ error: 'HWID mismatch' });
     }
 
     if (!keyData.hwid && hwid) {
-      await saveKey(key, { ...keyData, hwid });
+      await saveKey(key, {
+        note: keyData.note,
+        expiresAt: keyData.expires_at,
+        blacklisted: keyData.blacklisted,
+        scriptHash: keyData.script_hash,
+        maxUses: keyData.max_uses,
+        hwid,
+        useCount: keyData.use_count,
+        usageLog: JSON.parse(keyData.usage_log || '[]'),
+        knownUsernames: JSON.parse(keyData.known_usernames || '[]'),
+        createdAt: keyData.created_at,
+      });
     }
 
-    // Update usage
     const newLog = { ts: Date.now(), username: username || 'unknown', ip };
     await sql`
       UPDATE script_keys
-      SET 
+      SET
         use_count = use_count + 1,
         usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newLog)}::jsonb),
         known_usernames = jsonb_insert(known_usernames, '{0}', ${username || 'unknown'}::text, true)
@@ -256,7 +210,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Admin actions below ────────────────────────────────────────────────
+  // Admin actions
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
     await logSecurityEvent('bad_admin_password', { ip, action });
@@ -265,45 +219,42 @@ export default async function handler(req, res) {
   clearFailures(ip);
 
   try {
-    // ── LIST KEYS ────────────────────────────────────────────────────────
     if (action === 'list') {
       const keys = await getAllKeys();
       return res.status(200).json({ ok: true, keys });
     }
 
-    // ── CREATE/UPDATE KEY ────────────────────────────────────────────────
     if (action === 'savekey' || action === 'update') {
       const { id, note, expiresAt, blacklisted, scriptHash, maxUses, resetHwid } = params;
       if (!id) return res.status(400).json({ error: 'Missing id' });
 
       const existing = await getKey(id) || {};
       const data = {
-        ...existing,
         note: note !== undefined ? note : existing.note,
-        expiresAt: expiresAt !== undefined ? (expiresAt ? Number(expiresAt) : null) : existing.expiresAt,
+        expiresAt: expiresAt !== undefined ? (expiresAt ? Number(expiresAt) : null) : existing.expires_at,
         blacklisted: blacklisted !== undefined ? blacklisted : existing.blacklisted,
-        scriptHash: scriptHash !== undefined ? (scriptHash || null) : existing.scriptHash,
-        maxUses: maxUses !== undefined ? (maxUses ? Number(maxUses) : null) : existing.maxUses,
+        scriptHash: scriptHash !== undefined ? (scriptHash || null) : existing.script_hash,
+        maxUses: maxUses !== undefined ? (maxUses ? Number(maxUses) : null) : existing.max_uses,
         hwid: resetHwid ? null : existing.hwid,
+        useCount: existing.use_count || 0,
+        usageLog: JSON.parse(existing.usage_log || '[]'),
+        knownUsernames: JSON.parse(existing.known_usernames || '[]'),
+        createdAt: existing.created_at || Date.now(),
       };
 
       await saveKey(id, data);
       return res.status(200).json({ ok: true });
     }
 
-    // ── LIST SCRIPTS ─────────────────────────────────────────────────────
     if (action === 'listscripts') {
       const scripts = await getAllScripts();
       return res.status(200).json({ ok: true, scripts });
     }
 
-    // ── SAVE SCRIPT ──────────────────────────────────────────────────────
     if (action === 'savescript') {
       const { hash: providedHash, label, content } = params;
       if (!content) return res.status(400).json({ error: 'Missing content' });
-
       const scriptHash = providedHash || generateHash();
-
       await sql`
         INSERT INTO scripts (hash, label, content, created_at)
         VALUES (${scriptHash}, ${label || 'Unnamed'}, ${content}, ${Date.now()})
@@ -311,11 +262,9 @@ export default async function handler(req, res) {
           label = EXCLUDED.label,
           content = EXCLUDED.content
       `;
-
       return res.status(200).json({ ok: true, hash: scriptHash });
     }
 
-    // ── DELETE SCRIPT ────────────────────────────────────────────────────
     if (action === 'deletescript') {
       const { hash } = params;
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
@@ -323,23 +272,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ── GET SCRIPT ───────────────────────────────────────────────────────
     if (action === 'getscript') {
       const { hash } = params;
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
-
       const meta = await getScriptMeta(hash);
       if (!meta) return res.status(404).json({ error: 'Script not found' });
-
-      return res.status(200).json({
-        ok: true,
-        hash,
-        label: meta.label || 'Unnamed',
-        content: meta.content,
-      });
+      return res.status(200).json({ ok: true, hash, label: meta.label || 'Unnamed', content: meta.content });
     }
 
-    // ── SCRIPT ANALYTICS ─────────────────────────────────────────────────
     if (action === 'scriptanalytics') {
       const { hash } = params;
       if (hash) {
@@ -349,40 +289,29 @@ export default async function handler(req, res) {
       } else {
         const scripts = await getAllScripts();
         const summary = scripts.map(s => ({
-          hash: s.hash,
-          label: s.label,
-          useCount: s.use_count,
-          lastUsed: s.last_used,
-          recentUsers: (JSON.parse(s.usage_log || '[]')).slice(0, 5).map(l => ({
-            username: l.username,
-            ts: l.ts,
-            ip: l.ip,
-          })),
+          hash: s.hash, label: s.label, useCount: s.use_count, lastUsed: s.last_used,
+          recentUsers: JSON.parse(s.usage_log || '[]').slice(0, 5).map(l => ({ username: l.username, ts: l.ts, ip: l.ip })),
         }));
         summary.sort((a, b) => b.useCount - a.useCount);
         return res.status(200).json({ ok: true, scripts: summary });
       }
     }
 
-    // ── SECURITY LOG ─────────────────────────────────────────────────────
     if (action === 'securitylog') {
       const events = await getSecurityLog();
       return res.status(200).json({ ok: true, events });
     }
 
-    // ── KEY USERS ────────────────────────────────────────────────────────
     if (action === 'keyusers') {
       const { id } = params;
       if (!id) return res.status(400).json({ error: 'Missing id' });
-
       const data = await getKey(id);
       if (!data) return res.status(404).json({ error: 'Key not found' });
-
       return res.status(200).json({
         ok: true,
         usageLog: JSON.parse(data.usage_log || '[]'),
         knownUsernames: JSON.parse(data.known_usernames || '[]'),
-        lastUsername: data.known_usernames?.[0] || null,
+        lastUsername: JSON.parse(data.known_usernames || '[]')[0] || null,
         useCount: data.use_count || 0,
       });
     }
@@ -390,6 +319,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     console.error('Keys API error:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error', message: err.message });
   }
 }

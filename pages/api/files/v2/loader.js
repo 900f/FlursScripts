@@ -1,14 +1,10 @@
-// api/files/v2/loader.js
-// Serves a raw Lua script. Executor-only. Tracks usage server-side.
+// pages/api/files/v2/loader.js
+// Serves Lua scripts from DB. Executor-only.
+import { sql } from '../../../../lib/db.js';
 
-import { put, list } from '@vercel/blob';
-
-const BLOB_BASE_URL     = 'https://anynovmwoyinocra.public.blob.vercel-storage.com';
-const BLOB_TOKEN        = process.env.BLOB_READ_WRITE_TOKEN;
 const RATE_LIMIT_WINDOW = 15 * 1000;
 const RATE_LIMIT_MAX    = 8;
-
-const rateLimitStore = new Map();
+const rateLimitStore    = new Map();
 
 function getIP(req) {
   return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
@@ -44,33 +40,9 @@ function isForbiddenRequest(req) {
   for (const p of BLOCKED_UA_PATTERNS) {
     if (ua.includes(p)) return true;
   }
-  if (req.headers['x-forwarded-host'] && req.headers['x-forwarded-host'] !== req.headers['host']) return true;
   if (req.headers['via']) return true;
-  if (req.headers['x-real-ip'] && !req.headers['x-forwarded-for']) return true;
   if (ua.length > 0) return true;
   return false;
-}
-
-// ── Server-side tracking — no Lua ping needed ─────────────────────────────
-async function trackUse(hash, ip) {
-  try {
-    const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
-    const metaBlob  = blobs.find(b => b.pathname === `scripts/${hash}.meta.json`);
-    if (!metaBlob) return;
-    const meta = await fetch(metaBlob.url + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
-    meta.useCount = (meta.useCount || 0) + 1;
-    meta.usageLog = [{
-      ts:       Date.now(),
-      ip:       ip || 'unknown',
-      username: 'unknown', // username not available server-side for v2
-    }];
-    meta.lastUsed = Date.now();
-    await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
-      access: 'public', contentType: 'application/json', addRandomSuffix: false,
-    });
-  } catch (e) {
-    console.error('trackUse error:', e);
-  }
 }
 
 function wrapWithProtection(luaContent) {
@@ -103,17 +75,6 @@ do
         end
     end
 
-    local _origRequire = rawget(_ENV, "require")
-    if _origRequire then
-        rawset(_ENV, "require", function(m)
-            if type(m) == "string" and (m:lower():find("dump") or m:lower():find("decompile")) then
-                _kick("Disallowed require.")
-                return nil
-            end
-            return _origRequire(m)
-        end)
-    end
-
     local _origTostring = rawget(_ENV, "tostring") or tostring
     rawset(_ENV, "tostring", function(v)
         if type(v) == "function" then return "[protected]" end
@@ -143,17 +104,19 @@ export default async function handler(req, res) {
   const ip = getIP(req);
 
   try {
-    const url     = `${BLOB_BASE_URL}/scripts/${hash}.lua`;
-    const blobRes = await fetch(url, {
-      headers: BLOB_TOKEN ? { Authorization: `Bearer ${BLOB_TOKEN}` } : {},
-    });
+    const rows = await sql`SELECT content FROM scripts WHERE hash = ${hash}`;
+    if (!rows.length || !rows[0].content) {
+      return res.status(404).end('-- Not found');
+    }
 
-    if (!blobRes.ok) return res.status(404).end('-- Not found');
+    const rawContent = rows[0].content;
 
-    const rawContent = await blobRes.text();
-
-    // Track server-side — fire and don't await so it doesn't slow the response
-    trackUse(hash, ip);
+    // Track usage (fire and forget)
+    sql`
+      UPDATE scripts
+      SET use_count = use_count + 1, last_used = ${Date.now()}
+      WHERE hash = ${hash}
+    `.catch(e => console.error('track error:', e));
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).end(wrapWithProtection(rawContent));
