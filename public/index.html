@@ -973,7 +973,7 @@
         function getPw() { return localStorage.getItem('flurs_admin_pw') || ''; }
 
         async function apiAdmin(payload) {
-            const r = await fetch('/api/admin', {
+            const r = await fetch('https://www.flurs.xyz/api/admin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...payload, password: getPw() }),
@@ -982,7 +982,7 @@
         }
 
         async function apiUploadscript(payload) {
-            const r = await fetch('/api/uploadscript', {
+            const r = await fetch('https://www.flurs.xyz/api/uploadscript', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -1277,7 +1277,7 @@
 
         // ── Key System API helper ─────────────────────────────────────────
         async function apiKeys(payload) {
-            const r = await fetch('/api/keys', {
+            const r = await fetch('https://www.flurs.xyz/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...payload, password: getPw() }),
@@ -1799,12 +1799,12 @@ fn()`;
 
             // Only fetch key scripts and hosted scripts — public page scripts don't go through the loader
             const [keyData, hostData] = await Promise.all([
-                fetch('/api/keys', {
+                fetch('https://www.flurs.xyz/api/keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'scriptanalytics', password: pw }),
                 }).then(r => r.json()).catch(() => ({})),
-                fetch('/api/admin', {
+                fetch('https://www.flurs.xyz/api/admin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'list', password: pw }),
@@ -1915,7 +1915,7 @@ fn()`;
             let log = [];
 
             if (type === 'key') {
-                const d = await fetch('/api/keys', {
+                const d = await fetch('https://www.flurs.xyz/api/keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'scriptanalytics', password: pw, hash }),
@@ -1923,7 +1923,7 @@ fn()`;
                 log = d.analytics?.usageLog || [];
             } else {
                 // hosted — pull usageLog from meta via admin list
-                const d = await fetch('/api/admin', {
+                const d = await fetch('https://www.flurs.xyz/api/admin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'list', password: pw }),
@@ -1988,7 +1988,7 @@ fn()`;
             if (!list) return;
             list.innerHTML = '<p class="dash-empty">Loading…</p>';
             const pw = localStorage.getItem('flurs_admin_pw') || '';
-            const data = await fetch('/api/keys', {
+            const data = await fetch('https://www.flurs.xyz/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'list', password: pw }),
@@ -2058,7 +2058,7 @@ fn()`;
             card.scrollIntoView({ behavior: 'smooth' });
 
             const pw = localStorage.getItem('flurs_admin_pw') || '';
-            const data = await fetch('/api/keys', {
+            const data = await fetch('https://www.flurs.xyz/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'keyusers', password: pw, id }),
@@ -2099,7 +2099,7 @@ fn()`;
             list.innerHTML = '<p class="dash-empty">Loading…</p>';
 
             const pw = localStorage.getItem('flurs_admin_pw') || '';
-            const data = await fetch('/api/keys', {
+            const data = await fetch('https://www.flurs.xyz/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'securitylog', password: pw }),
