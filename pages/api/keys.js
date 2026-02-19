@@ -316,6 +316,45 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === 'create') {
+      const { note, scriptHash, expiresAt, maxUses } = params;
+      const newId = crypto.randomBytes(16).toString('hex');
+      await saveKey(newId, {
+        note: note || null,
+        expiresAt: expiresAt ? Number(expiresAt) : null,
+        blacklisted: false,
+        scriptHash: scriptHash || null,
+        maxUses: maxUses ? Number(maxUses) : null,
+        hwid: null,
+        useCount: 0,
+        usageLog: [],
+        knownUsernames: [],
+        createdAt: Date.now(),
+      });
+      return res.status(200).json({ ok: true, key: newId });
+    }
+
+    if (action === 'delete') {
+      const { id } = params;
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+      await sql`DELETE FROM script_keys WHERE id = ${id}`;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'revoke') {
+      const { id } = params;
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+      await sql`UPDATE script_keys SET blacklisted = true WHERE id = ${id}`;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'unrevoke') {
+      const { id } = params;
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+      await sql`UPDATE script_keys SET blacklisted = false WHERE id = ${id}`;
+      return res.status(200).json({ ok: true });
+    }
+
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     console.error('Keys API error:', err);

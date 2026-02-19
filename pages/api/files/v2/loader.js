@@ -94,7 +94,7 @@ export default async function handler(req, res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
   if (req.method !== 'GET')    return res.status(405).end('-- Method Not Allowed');
-  if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
+  if (isForbiddenRequest(req)) return res.redirect(302, '/forbidden.html');
   if (isRateLimited(req))      return res.status(429).end('-- Slow down');
 
   const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);

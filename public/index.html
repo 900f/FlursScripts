@@ -1286,7 +1286,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/${hash}.lua"))()`;
+            return 'script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/' + hash + '.lua", true))()';
         }
 
         function getLoaderFile(hash) {

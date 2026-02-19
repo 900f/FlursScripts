@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   const hash = match[1].toLowerCase();
 
   if (!isAllowedRequest(req)) {
-    return res.status(403).setHeader('Content-Type', 'text/plain').end('403 Forbidden');
+    return res.redirect(302, '/forbidden.html');
   }
 
   try {

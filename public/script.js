@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', function() {
             row.className = 'hosted-script-row us-script-row';
             row.innerHTML = `
                 <div class="hosted-script-info" style="display:flex;align-items:center;gap:0.875rem;">
-                    <img src="${script.imageUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" alt="">
+                    <img src="${script.image_data}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" alt="">
                     <div>
                         <span class="hosted-script-label">${script.name || 'Unnamed'}</span>
                         <span class="hosted-script-hash" style="display:block;">${(script.tags || []).join(', ') || 'No tags'}</span>
@@ -976,7 +976,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="admin-field">
                     <label style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Replace Image <span style="opacity:0.5;font-size:0.75rem;">(leave empty to keep current)</span></label>
-                    <img src="${script.imageUrl}" style="width:100%;max-height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-bottom:0.75rem;" alt="Current image">
+                    <img src="${script.image_data}" style="width:100%;max-height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-bottom:0.75rem;" alt="Current image">
                     <input type="file" id="usem-image" accept="image/*" style="color:var(--muted);font-size:0.85rem;width:100%;">
                 </div>
 
@@ -1071,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', function() {
             card.setAttribute('data-tags', (script.tags || []).join(' '));
             card.innerHTML = `
                 <div class="script-image">
-                    <img src="${script.imageUrl}" alt="${script.name} Preview">
+                    <img src="${script.image_data}" alt="${script.name} Preview">
                     <div class="script-overlay"><span class="script-status">Active</span></div>
                 </div>
                 <div class="script-content">
