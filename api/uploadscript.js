@@ -29,8 +29,11 @@ function generateId() {
 }
 
 export default async function handler(req, res) {
-  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://www.flurs.xyz';
   const origin = req.headers.origin || '';
+
+  console.log('[uploadscript] origin:', origin, '| allowed:', allowedOrigin, '| method:', req.method);
+
   if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'Forbidden' });
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -43,9 +46,12 @@ export default async function handler(req, res) {
 
   const { action, password, name, description, loadstring, tags, imageBase64, imageType } = req.body || {};
 
+  console.log('[uploadscript] action:', action, '| hasPassword:', !!password, '| passwordMatch:', password === ADMIN_PASSWORD);
+
   const needsAuth = ['auth', 'publish', 'delete', 'getone', 'update'].includes(action);
   if (needsAuth) {
     if (!password || password !== ADMIN_PASSWORD) {
+      console.log('[uploadscript] AUTH FAILED | received:', JSON.stringify(password), '| expected length:', ADMIN_PASSWORD.length);
       recordFailure(ip);
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -54,12 +60,10 @@ export default async function handler(req, res) {
 
   try {
 
-    // ── AUTH ping ─────────────────────────────────────────────────────────
     if (action === 'auth') {
       return res.status(200).json({ ok: true });
     }
 
-    // ── PUBLISH ───────────────────────────────────────────────────────────
     if (action === 'publish') {
       if (!name || !loadstring || !imageBase64) {
         return res.status(400).json({ error: 'Missing required fields: name, loadstring, imageBase64' });
@@ -80,7 +84,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, id });
     }
 
-    // ── DELETE ────────────────────────────────────────────────────────────
     if (action === 'delete') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Missing id' });
@@ -88,7 +91,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ── GETONE ────────────────────────────────────────────────────────────
     if (action === 'getone') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Missing id' });
@@ -98,19 +100,14 @@ export default async function handler(req, res) {
       `;
       if (!rows.length) return res.status(404).json({ error: 'Script not found' });
       const r = rows[0];
-      const script = {
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        loadstring: r.loadstring,
-        tags: r.tags,
+      return res.status(200).json({ ok: true, script: {
+        id: r.id, name: r.name, description: r.description,
+        loadstring: r.loadstring, tags: r.tags,
         imageUrl: `/api/uploadscript/image/${r.id}`,
         createdAt: Number(r.created_at),
-      };
-      return res.status(200).json({ ok: true, script });
+      }});
     }
 
-    // ── UPDATE ────────────────────────────────────────────────────────────
     if (action === 'update') {
       const { id, name, description, loadstring, tags, imageBase64, imageType } = req.body || {};
       if (!id || !name || !loadstring) return res.status(400).json({ error: 'Missing required fields' });
@@ -130,22 +127,17 @@ export default async function handler(req, res) {
           WHERE id = ${id}
         `;
       }
-
       return res.status(200).json({ ok: true });
     }
 
-    // ── LIST (public) ─────────────────────────────────────────────────────
     if (action === 'list') {
       const rows = await sql`
         SELECT id, name, description, loadstring, tags, image_type, created_at
         FROM scriptcards ORDER BY created_at DESC
       `;
       const scripts = rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        loadstring: r.loadstring,
-        tags: r.tags,
+        id: r.id, name: r.name, description: r.description,
+        loadstring: r.loadstring, tags: r.tags,
         imageUrl: `/api/uploadscript/image/${r.id}`,
         createdAt: Number(r.created_at),
       }));
@@ -155,7 +147,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action' });
 
   } catch (err) {
-    console.error('uploadscript error:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('[uploadscript] error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', detail: err.message });
   }
 }
