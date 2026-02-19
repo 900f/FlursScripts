@@ -51,7 +51,7 @@ function isForbiddenRequest(req) {
   return false;
 }
 
-// ── Server-side tracking — no Lua ping needed ─────────────────────────────
+// ── Server-side basic tracking (IP + count) ────────────────────────────────
 async function trackUse(hash, ip) {
   try {
     const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
@@ -63,7 +63,7 @@ async function trackUse(hash, ip) {
     meta.usageLog.push({
       ts:       Date.now(),
       ip:       ip || 'unknown',
-      username: 'unknown', // client will fill better data
+      username: 'unknown', // client will send better data
     });
     meta.lastUsed = Date.now();
     await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
@@ -74,8 +74,8 @@ async function trackUse(hash, ip) {
   }
 }
 
-function wrapWithProtection(luaContent, hash) {  // <-- added hash param
-  return `-- Flurs Protected Loader v2 (logging + improved kick 2026)
+function wrapWithProtection(luaContent, hash) {  // hash is now passed in
+  return `-- Flurs Protected Loader v2 (with working usage logging)
 do
     local _ENV = getfenv and getfenv(0) or _G
     local _ps    = game:GetService("Players")
@@ -88,7 +88,6 @@ do
         while true do task.wait(9e9) end
     end
 
-    -- Original poisons (unchanged)
     rawset(_ENV, "print",         function(...) _kick("Unauthorised print detected.") end)
     rawset(_ENV, "warn",          function(...) _kick("Unauthorised warn detected.")  end)
     rawset(_ENV, "printidentity", function()    _kick("printidentity blocked.") end)
@@ -122,22 +121,11 @@ do
         return _origTostring(v)
     end)
 
-    -- ── 2026 kick improvement: detect common bypass patterns (catches low/mid executors) ──
-    task.spawn(function()
-        task.wait(1.5)  -- give time for executor restores
-        if print == _G.print or type(print) ~= "function" or getfenv(print) ~= _ENV then
-            _kick("Global tampering / restore detected")
-        end
-        if hookfunction and type(hookfunction) == "function" then
-            _kick("hookfunction detected (tamper attempt)")
-        end
-    end)
-
     local _fn, _err = loadstring(${JSON.stringify(luaContent)})
     if not _fn then _kick("Script load failed.") return end
     local _ok, _runErr = pcall(_fn)
 
-    -- ── Logging ping (fixed: now sends real Roblox data) ────────────────────────
+    -- ── Silent usage logging ping ───────────────────────────────────────────
     task.spawn(function()
         pcall(function()
             local hs = game:GetService("HttpService")
@@ -146,8 +134,10 @@ do
             local serverId = game.JobId
             local gameName = "unknown"
 
+            -- Try to get real game name (fallback to "unknown")
             pcall(function()
-                local info = hs:JSONDecode(hs:GetAsync("https://games.roblox.com/v1/games?universeIds=" .. game.GameId))
+                local resp = hs:GetAsync("https://games.roblox.com/v1/games?universeIds=" .. game.GameId)
+                local info = hs:JSONDecode(resp)
                 gameName = info.data[1].name or "unknown"
             end)
 
@@ -156,22 +146,23 @@ do
                 username = username,
                 gameId   = gameId,
                 gameName = gameName,
-                serverId = serverId,
+                serverId = serverId
             }
 
-            local url = "https://api.flurs.xyz/api/admin?action=trackhosted"  -- change domain if needed
+            local baseUrl = "https://api.flurs.xyz/api/admin?action=trackhosted"  -- ← change if your domain is different
 
-            -- Prioritize request/http_request/syn.request → fallback GET
-            local reqFunc = request or (syn and syn.request) or http_request or (http and http.request)
-            if reqFunc then
-                reqFunc({
-                    Url     = url,
+            -- Try executor-friendly request methods first, fallback to HttpService GET
+            local req = request or (syn and syn.request) or http_request or (http and http.request)
+            if req then
+                req({
+                    Url     = baseUrl,
                     Method  = "POST",
-                    Headers = {["Content-Type"] = "application/json"},
+                    Headers = { ["Content-Type"] = "application/json" },
                     Body    = hs:JSONEncode(data)
                 })
             else
-                hs:GetAsync(url .. "&" .. hs:UrlEncode(hs:JSONEncode(data)))
+                local query = hs:UrlEncode(hs:JSONEncode(data))
+                hs:GetAsync(baseUrl .. "&" .. query)
             end
         end)
     end)
@@ -205,11 +196,11 @@ export default async function handler(req, res) {
 
     const rawContent = await blobRes.text();
 
-    // Track server-side (IP + basic count)
+    // Server-side IP tracking (still runs)
     trackUse(hash, ip);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(wrapWithProtection(rawContent, hash));  // pass hash
+    return res.status(200).end(wrapWithProtection(rawContent, hash));
 
   } catch (err) {
     console.error('Loader v2 error:', err);
