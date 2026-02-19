@@ -5,6 +5,7 @@
     { "source": "/api/files/v2/loader/:hash.lua",  "destination": "/api/files/v2/loader" },
     { "source": "/api/loader/:hash.lua",           "destination": "/api/loader" },
     { "source": "/files/v3/loader/:hash*.lua",     "destination": "/api/files/v3/loader" },
+    { "source": "/files/v3/bootstrap/:id.lua",     "destination": "/api/bootstrap" },
     { "source": "/((?!api/).*)",                   "destination": "/public/$1" }
   ],
   "headers": [
