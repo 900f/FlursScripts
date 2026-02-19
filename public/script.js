@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
    
     setupSearch('script-search', '.script-card', true);
     setupSearch('config-search', '.config-card');
-    setupSearch('brainrot-search', '#brainrots-page .script-card', true);
+
    
     // Notification system
     function showNotification(message, type = 'success') {
@@ -367,7 +367,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ─── SCRIPT HOST / ADMIN SYSTEM (Vercel KV backed) ──────────────────────
 
-    let sessionPassword = null; // held in memory only, never persisted
+    let sessionPassword = null;
+
+    // Load saved password and auto-unlock both gates if already saved
+    const savedPassword = localStorage.getItem('flurs_admin_pw');
+    if (savedPassword) sessionPassword = savedPassword;
 
     function generateHash() {
         const chars = '0123456789abcdef';
@@ -378,13 +382,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
+    const API_BASE = 'https://api.flurs.xyz';
+
     function getScriptUrl(hash) {
-        return `${window.location.origin}/api/execute/${hash}.lua`;
+        return `${API_BASE}/files/v2/loader/${hash}.lua`;
     }
 
     function getLoadstring(hash) {
-        return `loadstring(game:HttpGet("${window.location.origin}/api/execute/${hash}.lua", true))()`;
+        return `loadstring(game:HttpGet("${API_BASE}/files/v2/loader/${hash}.lua", true))()`;
     }
+
 
     async function adminApi(payload) {
         const res = await fetch('/api/admin', {
@@ -393,6 +400,22 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ ...payload, password: sessionPassword }),
         });
         return res.json();
+    }
+
+    // Auto-unlock admin gate if password already saved
+    async function tryAutoUnlockAdmin() {
+        if (!sessionPassword) return;
+        const data = await adminApi({ action: 'list' });
+        if (data.error === 'Unauthorized') {
+            localStorage.removeItem('flurs_admin_pw');
+            sessionPassword = null;
+            return;
+        }
+        const gate  = document.getElementById('admin-gate');
+        const panel = document.getElementById('admin-panel');
+        if (gate)  gate.style.display  = 'none';
+        if (panel) panel.style.display = 'block';
+        renderHostedScriptsList();
     }
 
     // ── Edit Modal ───────────────────────────────────────────────────────────
@@ -568,17 +591,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (data.error === 'Unauthorized') {
             sessionPassword = null;
+            localStorage.removeItem('flurs_admin_pw');
             if (adminLoginError) adminLoginError.style.display = 'block';
             if (adminPasswordInput) adminPasswordInput.value = '';
             if (adminLoginBtn) { adminLoginBtn.disabled = false; adminLoginBtn.textContent = 'Unlock'; }
             return;
         }
 
+        sessionPassword = pw;
+        localStorage.setItem('flurs_admin_pw', pw);
+
         if (adminGate) adminGate.style.display = 'none';
         if (adminPanel) adminPanel.style.display = 'block';
         if (adminLoginError) adminLoginError.style.display = 'none';
         if (adminLoginBtn) { adminLoginBtn.disabled = false; adminLoginBtn.textContent = 'Unlock'; }
         renderHostedScriptsList();
+    }
+
+    // Add logout button to admin panel
+    function addAdminLogoutBtn() {
+        const panel = document.getElementById('admin-panel');
+        if (!panel || document.getElementById('admin-logout-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'admin-logout-btn';
+        btn.className = 'option-btn';
+        btn.style.cssText = 'margin-bottom:1.5rem;color:#f87171;';
+        btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Log Out & Forget Password';
+        btn.addEventListener('click', () => {
+            localStorage.removeItem('flurs_admin_pw');
+            sessionPassword = null;
+            const gate = document.getElementById('admin-gate');
+            if (gate) gate.style.display = 'flex';
+            if (panel) panel.style.display = 'none';
+            btn.remove();
+        });
+        panel.prepend(btn);
     }
 
     if (adminLoginBtn) {
@@ -632,19 +679,471 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification('Loadstring copied!', 'success');
     });
 
-    // Handle #admin route in URL (no more #raw — that's a real server path now)
+    // Handle #admin and #uploadscript routes in URL
+    // ─── UPLOAD SCRIPT PAGE ──────────────────────────────────────────────────
+
+    let uploadScriptPassword = null;
+
+    // Reuse saved password for upload gate too
+    if (savedPassword) uploadScriptPassword = savedPassword;
+
+    async function tryAutoUnlockUpload() {
+        if (!uploadScriptPassword) return;
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'auth', password: uploadScriptPassword }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        if (res.error) {
+            uploadScriptPassword = null;
+            localStorage.removeItem('flurs_admin_pw');
+            return;
+        }
+        if (uploadGate)  uploadGate.style.display  = 'none';
+        if (uploadPanel) uploadPanel.style.display = 'block';
+        renderUploadedScriptsList();
+    }
+
+    // Gate unlock
+    const uploadGateBtn = document.getElementById('upload-gate-btn');
+    const uploadGateInput = document.getElementById('upload-gate-password');
+    const uploadGateError = document.getElementById('upload-gate-error');
+    const uploadGate = document.getElementById('upload-gate');
+    const uploadPanel = document.getElementById('upload-panel');
+
+    async function unlockUploadScript() {
+        const pw = uploadGateInput?.value || '';
+        if (!pw) return;
+        if (uploadGateBtn) { uploadGateBtn.disabled = true; uploadGateBtn.textContent = '…'; }
+
+        // Validate password against server
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'auth', password: pw }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        if (uploadGateBtn) { uploadGateBtn.disabled = false; uploadGateBtn.textContent = 'Unlock'; }
+
+        if (res.error) {
+            if (uploadGateError) { uploadGateError.textContent = res.error === 'Unauthorized' ? 'Incorrect password.' : res.error; uploadGateError.style.display = 'block'; }
+            uploadGateInput.value = '';
+            return;
+        }
+
+        uploadScriptPassword = pw;
+        localStorage.setItem('flurs_admin_pw', pw);
+        if (uploadGate) uploadGate.style.display = 'none';
+        if (uploadPanel) uploadPanel.style.display = 'block';
+        renderUploadedScriptsList();
+        addUploadLogoutBtn();
+    }
+
+    function addUploadLogoutBtn() {
+        const panel = document.getElementById('upload-panel');
+        if (!panel || document.getElementById('upload-logout-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'upload-logout-btn';
+        btn.className = 'option-btn';
+        btn.style.cssText = 'margin-bottom:1.5rem;color:#f87171;';
+        btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Log Out & Forget Password';
+        btn.addEventListener('click', () => {
+            localStorage.removeItem('flurs_admin_pw');
+            uploadScriptPassword = null;
+            if (uploadGate)  uploadGate.style.display  = 'flex';
+            if (uploadPanel) uploadPanel.style.display = 'none';
+            btn.remove();
+        });
+        panel.prepend(btn);
+    }
+
+    uploadGateBtn?.addEventListener('click', unlockUploadScript);
+    uploadGateInput?.addEventListener('keydown', e => e.key === 'Enter' && unlockUploadScript());
+
+    // Image preview
+    const usImage = document.getElementById('us-image');
+    const imagePreviewWrap = document.getElementById('image-preview-wrap');
+    const usImagePreview = document.getElementById('us-image-preview');
+    const usImageClear = document.getElementById('us-image-clear');
+    const uploadImageArea = document.getElementById('upload-image-area');
+
+    usImage?.addEventListener('change', () => {
+        const file = usImage.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            usImagePreview.src = e.target.result;
+            imagePreviewWrap.style.display = 'block';
+            uploadImageArea.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    });
+
+    usImageClear?.addEventListener('click', () => {
+        usImage.value = '';
+        usImagePreview.src = '';
+        imagePreviewWrap.style.display = 'none';
+        uploadImageArea.style.display = 'flex';
+    });
+
+    // Drag and drop on image area
+    uploadImageArea?.addEventListener('dragover', e => { e.preventDefault(); uploadImageArea.classList.add('drag-over'); });
+    uploadImageArea?.addEventListener('dragleave', () => uploadImageArea.classList.remove('drag-over'));
+    uploadImageArea?.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadImageArea.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            usImage.files = dt.files;
+            usImage.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // Submit
+    const usSubmitBtn = document.getElementById('us-submit-btn');
+    usSubmitBtn?.addEventListener('click', async () => {
+        const name        = document.getElementById('us-name')?.value.trim();
+        const description = document.getElementById('us-description')?.value.trim();
+        const loadstring  = document.getElementById('us-loadstring')?.value.trim();
+        const tagsRaw     = document.getElementById('us-tags')?.value.trim();
+        const imageFile   = usImage?.files[0];
+
+        if (!name)        return showNotification('Script name is required.', 'error');
+        if (!loadstring)  return showNotification('Loadstring is required.', 'error');
+        if (!imageFile)   return showNotification('Please choose an image.', 'error');
+
+        const titleEl = usSubmitBtn.querySelector('.btn-title');
+        usSubmitBtn.disabled = true;
+        if (titleEl) titleEl.textContent = 'Uploading…';
+
+        // Convert image to base64
+        const imageBase64 = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result.split(',')[1]);
+            reader.readAsDataURL(imageFile);
+        });
+
+        const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'publish',
+                password: uploadScriptPassword,
+                name, description, loadstring, tags,
+                imageBase64,
+                imageType: imageFile.type,
+            }),
+        }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+        usSubmitBtn.disabled = false;
+        if (titleEl) titleEl.textContent = 'Publish Script';
+
+        if (res.error) return showNotification('Failed: ' + res.error, 'error');
+
+        // Clear form
+        document.getElementById('us-name').value = '';
+        document.getElementById('us-description').value = '';
+        document.getElementById('us-loadstring').value = '';
+        document.getElementById('us-tags').value = '';
+        usImageClear?.click();
+
+        document.getElementById('us-result').style.display = 'block';
+        setTimeout(() => { document.getElementById('us-result').style.display = 'none'; }, 4000);
+        showNotification('Script published!', 'success');
+
+        // Reload dynamic scripts so it appears immediately if user goes to scripts page
+        loadDynamicScripts();
+        renderUploadedScriptsList();
+    });
+
+    // ─── MANAGE SCRIPTS LIST (on #uploadscript page) ─────────────────────────
+
+    async function renderUploadedScriptsList() {
+        const list  = document.getElementById('us-scripts-list');
+        const noMsg = document.getElementById('us-no-scripts-msg');
+        if (!list) return;
+
+        list.querySelectorAll('.us-script-row').forEach(r => r.remove());
+        if (noMsg) { noMsg.textContent = 'Loading…'; noMsg.style.display = 'block'; }
+
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'list' }),
+        }).then(r => r.json()).catch(() => null);
+
+        if (!res?.ok || !res.scripts?.length) {
+            if (noMsg) { noMsg.textContent = 'No scripts uploaded yet.'; noMsg.style.display = 'block'; }
+            return;
+        }
+        if (noMsg) noMsg.style.display = 'none';
+
+        res.scripts.forEach(script => {
+            const row = document.createElement('div');
+            row.className = 'hosted-script-row us-script-row';
+            row.innerHTML = `
+                <div class="hosted-script-info" style="display:flex;align-items:center;gap:0.875rem;">
+                    <img src="${script.imageUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" alt="">
+                    <div>
+                        <span class="hosted-script-label">${script.name || 'Unnamed'}</span>
+                        <span class="hosted-script-hash" style="display:block;">${(script.tags || []).join(', ') || 'No tags'}</span>
+                    </div>
+                </div>
+                <div class="hosted-script-actions">
+                    <button class="option-btn us-edit-btn" data-id="${script.id}"><i class="fa-solid fa-pen"></i> Edit</button>
+                    <button class="option-btn us-delete-btn" data-id="${script.id}" style="color:#f87171;"><i class="fa-solid fa-trash"></i> Delete</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+
+        // Edit buttons
+        list.querySelectorAll('.us-edit-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.id;
+                btn.disabled = true; btn.innerHTML = '…';
+
+                const res = await fetch('/api/uploadscript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getone', id, password: uploadScriptPassword }),
+                }).then(r => r.json()).catch(() => null);
+
+                btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-pen"></i> Edit';
+                if (!res?.ok) return showNotification('Could not load script.', 'error');
+                openUploadScriptEditModal(res.script);
+            });
+        });
+
+        // Delete buttons
+        list.querySelectorAll('.us-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Delete this script? This cannot be undone.')) return;
+                btn.disabled = true; btn.innerHTML = '…';
+
+                const res = await fetch('/api/uploadscript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', id: btn.dataset.id, password: uploadScriptPassword }),
+                }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+                if (res.ok) {
+                    showNotification('Script deleted.', 'success');
+                    renderUploadedScriptsList();
+                    loadDynamicScripts();
+                } else {
+                    showNotification('Delete failed: ' + (res.error || 'unknown'), 'error');
+                    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-trash"></i> Delete';
+                }
+            });
+        });
+    }
+
+    // Edit modal for uploaded script cards
+    function openUploadScriptEditModal(script) {
+        document.getElementById('us-edit-modal')?.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'us-edit-modal';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);padding:1rem;';
+        modal.innerHTML = `
+            <div style="background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:2rem;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:1.25rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h3 style="font-family:var(--font-head);color:var(--text);font-size:1.15rem;font-weight:700;margin:0;">Edit Script</h3>
+                    <button id="usem-close" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:0.25rem;">✕</button>
+                </div>
+
+                <div class="admin-field">
+                    <label class="admin-field-label" style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Script Name</label>
+                    <input id="usem-name" class="admin-input" value="${(script.name || '').replace(/"/g,'&quot;')}" placeholder="Script name">
+                </div>
+                <div class="admin-field">
+                    <label style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Description</label>
+                    <input id="usem-description" class="admin-input" value="${(script.description || '').replace(/"/g,'&quot;')}" placeholder="Description">
+                </div>
+                <div class="admin-field">
+                    <label style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Loadstring</label>
+                    <textarea id="usem-loadstring" class="admin-textarea" style="min-height:80px;">${script.loadstring || ''}</textarea>
+                </div>
+                <div class="admin-field">
+                    <label style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Tags <span style="opacity:0.5;font-size:0.75rem;">(comma separated)</span></label>
+                    <input id="usem-tags" class="admin-input" value="${(script.tags || []).join(', ')}" placeholder="Arsenal, Aimbot">
+                </div>
+                <div class="admin-field">
+                    <label style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;font-weight:500;">Replace Image <span style="opacity:0.5;font-size:0.75rem;">(leave empty to keep current)</span></label>
+                    <img src="${script.imageUrl}" style="width:100%;max-height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-bottom:0.75rem;" alt="Current image">
+                    <input type="file" id="usem-image" accept="image/*" style="color:var(--muted);font-size:0.85rem;width:100%;">
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:0.5rem;">
+                    <button id="usem-cancel" class="option-btn">Cancel</button>
+                    <button id="usem-save" class="download-btn" style="width:auto;padding:0.65rem 1.5rem;">
+                        <span class="btn-content"><span class="btn-text"><span class="btn-title">Save Changes</span></span></span>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('usem-close').addEventListener('click', () => modal.remove());
+        document.getElementById('usem-cancel').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+        document.getElementById('usem-save').addEventListener('click', async () => {
+            const name        = document.getElementById('usem-name').value.trim();
+            const description = document.getElementById('usem-description').value.trim();
+            const loadstring  = document.getElementById('usem-loadstring').value.trim();
+            const tagsRaw     = document.getElementById('usem-tags').value.trim();
+            const imageFile   = document.getElementById('usem-image').files[0];
+
+            if (!name)       return showNotification('Name is required.', 'error');
+            if (!loadstring) return showNotification('Loadstring is required.', 'error');
+
+            const saveBtn = document.getElementById('usem-save');
+            const titleEl = saveBtn.querySelector('.btn-title');
+            saveBtn.disabled = true;
+            if (titleEl) titleEl.textContent = 'Saving…';
+
+            const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+            let imageBase64 = null, imageType = null;
+            if (imageFile) {
+                imageBase64 = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result.split(',')[1]);
+                    reader.readAsDataURL(imageFile);
+                });
+                imageType = imageFile.type;
+            }
+
+            const res = await fetch('/api/uploadscript', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'update',
+                    password: uploadScriptPassword,
+                    id: script.id,
+                    name, description, loadstring, tags,
+                    imageBase64, imageType,
+                }),
+            }).then(r => r.json()).catch(() => ({ error: 'Network error' }));
+
+            saveBtn.disabled = false;
+            if (titleEl) titleEl.textContent = 'Save Changes';
+
+            if (res.error) return showNotification('Save failed: ' + res.error, 'error');
+
+            showNotification('Script updated!', 'success');
+            modal.remove();
+            renderUploadedScriptsList();
+            loadDynamicScripts();
+        });
+    }
+
+    // ─── DYNAMIC SCRIPT LOADING ──────────────────────────────────────────────
+    // Fetches scripts uploaded via #uploadscript and appends them to the grid
+
+    async function loadDynamicScripts() {
+        const grid = document.querySelector('#scripts-page .scripts-grid');
+        if (!grid) return;
+
+        // Remove previously injected dynamic cards
+        grid.querySelectorAll('.dynamic-script-card').forEach(el => el.remove());
+
+        const res = await fetch('/api/uploadscript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'list' }),
+        }).then(r => r.json()).catch(() => null);
+
+        if (!res?.ok || !res.scripts?.length) return;
+
+        res.scripts.forEach(script => {
+            const tagsHtml = (script.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+            const card = document.createElement('div');
+            card.className = 'script-card dynamic-script-card';
+            card.setAttribute('data-name', script.name || '');
+            card.setAttribute('data-tags', (script.tags || []).join(' '));
+            card.innerHTML = `
+                <div class="script-image">
+                    <img src="${script.imageUrl}" alt="${script.name} Preview">
+                    <div class="script-overlay"><span class="script-status">Active</span></div>
+                </div>
+                <div class="script-content">
+                    <h3 class="script-name">${script.name}</h3>
+                    <p class="script-description">${script.description || ''}</p>
+                    <div class="script-code-container">
+                        <code class="script-code">${script.loadstring}</code>
+                        <button class="copy-btn">Copy</button>
+                    </div>
+                    <div class="script-tags">${tagsHtml}</div>
+                </div>
+            `;
+
+            // Wire up copy button
+            card.querySelector('.copy-btn')?.addEventListener('click', async function() {
+                const code = this.parentElement.querySelector('.script-code')?.textContent;
+                if (!code) return;
+                try {
+                    await navigator.clipboard.writeText(code);
+                    this.textContent = 'Copied';
+                    this.style.color = 'var(--green)';
+                    setTimeout(() => { this.textContent = 'Copy'; this.style.color = ''; }, 2000);
+                    showNotification('Copied to clipboard!', 'success');
+                } catch { showNotification('Failed to copy', 'error'); }
+            });
+
+            // Wire up image zoom
+            const img = card.querySelector('.script-image img');
+            if (img) {
+                img.style.cursor = 'zoom-in';
+                img.addEventListener('click', () => {
+                    document.getElementById('enlarged-image').src = img.src;
+                    document.getElementById('image-modal').classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                });
+            }
+
+            grid.appendChild(card);
+        });
+
+        // Re-run scroll observer on new cards
+        grid.querySelectorAll('.dynamic-script-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(40px)';
+            observer.observe(el);
+        });
+    }
+
+    // Load dynamic scripts on page ready
+    loadDynamicScripts();
+
+    // ── handleSpecialRoutes — defined here so all functions above are available ──
     function handleSpecialRoutes() {
         const hash = window.location.hash.replace('#', '');
         if (hash === 'admin') {
             pages.forEach(page => page.classList.remove('active'));
             document.getElementById('admin-page')?.classList.add('active');
             navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockAdmin().then(addAdminLogoutBtn);
+            return true;
+        }
+        if (hash === 'uploadscript') {
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById('uploadscript-page')?.classList.add('active');
+            navLinks.forEach(l => l.classList.remove('active'));
+            tryAutoUnlockUpload().then(addUploadLogoutBtn);
             return true;
         }
         return false;
     }
 
-    // Intercept initial load and hash changes
+    // Initial route check
     if (!handleSpecialRoutes()) {
         handleInitialPage();
     }

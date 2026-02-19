@@ -1,8 +1,11 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/execute/:hash.lua", "destination": "/api/execute" },
-    { "source": "/((?!api/).*)",          "destination": "/public/$1" }
+    { "source": "/files/v2/loader/:hash.lua",      "destination": "/api/files/v2/loader" },
+    { "source": "/api/files/v2/loader/:hash.lua",  "destination": "/api/files/v2/loader" },
+    { "source": "/api/loader/:hash.lua",           "destination": "/api/loader" },
+    { "source": "/files/v3/loader/:hash*.lua",     "destination": "/api/files/v3/loader" },
+    { "source": "/((?!api/).*)",                   "destination": "/public/$1" }
   ],
   "headers": [
     {
@@ -10,6 +13,13 @@
       "headers": [
         { "key": "X-Robots-Tag",  "value": "noindex, nofollow" },
         { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/files/v3/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     }
   ]
