@@ -1,168 +1,137 @@
 // pages/api/files/v3/loader.js
-// Serves a Lua loader that key-validates and pulls script content from DB.
-const RATE_LIMIT_WINDOW = 15 * 1000;
-const RATE_LIMIT_MAX    = 20;
-const rateLimitStore    = new Map();
+// Serves KEY-PROTECTED scripts. Returns Lua that validates key server-side.
+import { sql } from '../../../../lib/db.js';
+
+const RATE_LIMIT_WINDOW = 15000;
+const RATE_LIMIT_MAX = 20;
+const rateLimitStore = new Map();
 
 function getIP(req) {
   return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 }
-
-function isRateLimited(ip) {
-  const now   = Date.now();
-  const entry = rateLimitStore.get(ip) || { count: 0, start: now };
-  if (now - entry.start > RATE_LIMIT_WINDOW) {
-    rateLimitStore.set(ip, { count: 1, start: now });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  rateLimitStore.set(ip, entry);
+function isRateLimited(req) {
+  const ip = getIP(req);
+  const now = Date.now();
+  const e = rateLimitStore.get(ip) || { count: 0, start: now };
+  if (now - e.start > RATE_LIMIT_WINDOW) { rateLimitStore.set(ip, { count: 1, start: now }); return false; }
+  if (e.count >= RATE_LIMIT_MAX) return true;
+  e.count++; rateLimitStore.set(ip, e);
   return false;
 }
 
-const BLOCKED_UA_PATTERNS = [
-  'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave',
-  'wget', 'curl', 'python', 'postman', 'insomnia', 'httpie', 'axios',
-  'node', 'fetch', 'go-http', 'java', 'okhttp', 'dart', 'php',
-  'perl', 'ruby', 'powershell', 'libwww', 'pycurl', 'aiohttp',
-  'scrapy', 'mechanize', 'requests', 'http-client', 'apache',
-  'burpsuite', 'burp', 'wireshark', 'fiddler', 'charles', 'mitmproxy',
-  'nmap', 'hydra', 'sqlmap', 'nikto', 'metasploit', 'zap',
-];
+const BLOCKED_UA = ['mozilla','chrome','safari','firefox','edge','opera','wget','curl','python','postman','insomnia','node','fetch','go-http','java','perl','ruby','powershell','libwww','scrapy','burp','fiddler','charles','mitmproxy','nmap','sqlmap','nikto'];
 
-function isForbiddenRequest(req) {
+function isBrowser(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase().trim();
+  if (!ua) return false;
   if (ua.includes('roblox') || ua.includes('wininet')) return false;
-  for (const p of BLOCKED_UA_PATTERNS) {
-    if (ua.includes(p)) return true;
-  }
+  for (const p of BLOCKED_UA) { if (ua.includes(p)) return true; }
   if (req.headers['via']) return true;
-  if (ua.length > 0) return true;
-  return false;
+  return true;
 }
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('X-Robots-Tag', 'noindex');
 
   if (req.method !== 'GET') return res.status(405).end('-- Method Not Allowed');
-  if (isForbiddenRequest(req)) return res.redirect(302, '/forbidden.html');
 
-  const ip = getIP(req);
-  if (isRateLimited(ip)) return res.status(429).end('-- rate_limited');
+  if (isBrowser(req)) {
+    res.setHeader('Location', '/forbidden.html');
+    return res.status(302).end();
+  }
 
-  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
-  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-  if (!hash) return res.status(400).end('-- invalid_hash');
+  if (isRateLimited(req)) return res.status(429).end('-- Rate limited');
 
-  const API = 'https://www.flurs.xyz/api/keys';
+  const url = req.url || '';
+  const match = url.match(/([a-f0-9]{32})\.lua/i);
+  const scriptHash = match ? match[1].toLowerCase() : null;
+  if (!scriptHash) return res.status(400).end('-- Missing script hash');
 
-  const lua = `-- Flurs Secure Loader v3 | https://flurs.xyz
-do
-local _hash = "${hash}"
-local _api  = "${API}"
+  // Check key + HWID from headers (executor passes them)
+  const key      = req.headers['x-flurs-key']  || '';
+  const hwid     = req.headers['x-flurs-hwid'] || '';
+  const username = req.headers['x-flurs-user'] || 'unknown';
 
-local _ENV   = getfenv and getfenv(0) or _G
-local _ps    = game:GetService("Players")
-local _lp    = _ps.LocalPlayer
+  // If no key header, return Lua stub that reads script_key global and re-fetches with headers
+  // This handles the two-phase flow: first fetch returns loader Lua, second fetch (with key header) returns script
+  if (!key) {
+    const BASE = process.env.ALLOWED_ORIGIN || 'https://www.flurs.xyz';
+    const lua = `-- Flurs v3 Key Loader
+-- Usage: script_key = "YOUR-KEY"; loadstring(game:HttpGet("${BASE}/files/v3/loader/${scriptHash}.lua", true))()
 
-local function _FLURS_KICK(reason)
-    pcall(function()
-        _lp:Kick("[Flurs] Security violation: " .. tostring(reason))
-    end)
-    while true do task.wait(9e9) end
+local _key = (getgenv and getgenv().script_key) or (genv and genv().script_key) or ""
+if _key == "" then
+    error("[Flurs] Set script_key before running. Example: script_key = 'your-key-here'", 0)
 end
 
-rawset(_ENV, "print",         function(...) _FLURS_KICK("print blocked") end)
-rawset(_ENV, "warn",          function(...) _FLURS_KICK("warn blocked")  end)
-rawset(_ENV, "printidentity", function()    _FLURS_KICK("printidentity blocked") end)
-
-pcall(function()
-    if rawget(string, "dump") then
-        rawset(string, "dump", function() _FLURS_KICK("string.dump blocked") end)
-    end
-end)
-
-local _dumpFns = {
-    "getscriptclosure","getscriptfunction","dumpstring",
-    "decompile","getfuncs","getproto","getconstants","getupvalues",
-    "getinfo","debug","hookfunction","newcclosure","checkcaller"
-}
-for _, fn in ipairs(_dumpFns) do
-    if rawget(_ENV, fn) ~= nil then
-        rawset(_ENV, fn, function(...) _FLURS_KICK(fn .. " blocked") end)
-    end
-end
-
-local _ots = rawget(_ENV, "tostring") or tostring
-rawset(_ENV, "tostring", function(v)
-    if type(v) == "function" then return "[protected]" end
-    return _ots(v)
-end)
-
-local key = (getgenv and getgenv().script_key)
-         or (genv    and genv().script_key)
-         or (getfenv and getfenv().script_key)
-
-if not key or key == "" then
-    error("[Flurs] No key set. Do this first:\\n  script_key=\\"YOUR-FLURS-KEY\\"", 0)
-end
-
-local ok_hwid, hwid = pcall(function()
+local _ok_hwid, _hwid = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
 end)
-
-local ok_name, username = pcall(function()
-    return _lp and _lp.Name or "unknown"
+local _ok_user, _user = pcall(function()
+    return game:GetService("Players").LocalPlayer.Name
 end)
-local _username = (ok_name and username) or "unknown"
 
-local _hs    = game:GetService("HttpService")
-local _query = "action=validate"
-             .. "&key="        .. _hs:UrlEncode(key)
-             .. "&hwid="       .. _hs:UrlEncode(ok_hwid and hwid or "unknown")
-             .. "&scriptHash=" .. _hs:UrlEncode(_hash)
-             .. "&username="   .. _hs:UrlEncode(_username)
-
-local _success, _response = pcall(function()
-    return http_request({
-        Url     = _api .. "?" .. _query,
-        Method  = "GET",
-        Headers = { ["Accept"] = "application/json" }
+local _ok, _result = pcall(function()
+    return game:HttpGet("${BASE}/files/v3/loader/${scriptHash}.lua", true, {
+        ["X-Flurs-Key"]  = _key,
+        ["X-Flurs-Hwid"] = _ok_hwid and _hwid or "unknown",
+        ["X-Flurs-User"] = _ok_user and _user or "unknown",
     })
 end)
 
-if not _success then
-    error("[Flurs] Request failed: " .. tostring(_response), 0)
-end
+if not _ok then error("[Flurs] Could not reach server: "..(tostring(_result)), 0) end
+if type(_result) ~= "string" or _result == "" then error("[Flurs] Empty response from server.", 0) end
+if _result:sub(1,2) == "--" and _result:find("error",1,true) then error("[Flurs] "..(_result:match("%-%-(.+)") or _result), 0) end
 
-if _response.StatusCode < 200 or _response.StatusCode >= 300 then
-    error("[Flurs] Server error " .. tostring(_response.StatusCode), 0)
-end
+local _fn, _err = loadstring(_result)
+if not _fn then error("[Flurs] Script error: "..(tostring(_err)), 0) end
+_fn()`;
 
-local _data
-local _ok2, _decErr = pcall(function()
-    _data = _hs:JSONDecode(_response.Body)
-end)
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(200).end(lua);
+  }
 
-if not _ok2 or type(_data) ~= "table" then
-    error("[Flurs] Bad server response.", 0)
-end
+  // Second phase: key is present — validate and return actual script content
+  const ip = getIP(req);
+  try {
+    const keyRows = await sql`SELECT * FROM script_keys WHERE id = ${key}`;
+    if (!keyRows.length) return res.status(401).end('-- error: Invalid key');
 
-if not _data.ok then
-    error("[Flurs] " .. tostring(_data.error or "Access denied"), 0)
-end
+    const k = keyRows[0];
+    if (k.blacklisted)                                 return res.status(403).end('-- error: Key is blacklisted');
+    if (k.expires_at && Date.now() > k.expires_at)    return res.status(403).end('-- error: Key has expired');
+    if (k.max_uses && (k.use_count||0) >= k.max_uses) return res.status(403).end('-- error: Key max uses reached');
+    if (k.script_hash && k.script_hash !== scriptHash) return res.status(403).end('-- error: Key not valid for this script');
+    if (k.hwid && k.hwid !== hwid)                    return res.status(403).end('-- error: HWID mismatch');
 
-local _fn, _err = loadstring(_data.content)
-if not _fn then error("[Flurs] " .. tostring(_err), 0) end
+    // Bind HWID
+    if (!k.hwid && hwid) {
+      await sql`UPDATE script_keys SET hwid = ${hwid} WHERE id = ${key}`;
+    }
 
-local _runOk, _runErr = pcall(_fn)
+    // Log usage
+    const logEntry = JSON.stringify({ ts: Date.now(), username, ip });
+    await sql`
+      UPDATE script_keys SET
+        use_count = use_count + 1,
+        usage_log = jsonb_insert(usage_log, '{0}', ${logEntry}::jsonb),
+        known_usernames = CASE WHEN NOT known_usernames @> ${JSON.stringify([username])}::jsonb THEN jsonb_insert(known_usernames, '{0}', ${JSON.stringify(username)}::jsonb) ELSE known_usernames END
+      WHERE id = ${key}
+    `;
 
-end -- do
-`;
+    // Fetch the actual script
+    const scriptRows = await sql`SELECT content FROM scripts WHERE hash = ${scriptHash} AND is_key_script = true`;
+    if (!scriptRows.length || !scriptRows[0].content) return res.status(404).end('-- error: Script not found');
 
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  return res.status(200).end(lua);
+    // Track script usage
+    sql`UPDATE scripts SET use_count = use_count + 1, last_used = ${Date.now()} WHERE hash = ${scriptHash}`.catch(() => {});
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(200).end(scriptRows[0].content);
+  } catch (err) {
+    console.error('[v3 loader]', err);
+    return res.status(500).end('-- error: Server error');
+  }
 }
