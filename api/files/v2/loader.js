@@ -36,6 +36,17 @@ function isBrowser(req) {
   return false;
 }
 
+async function writeLog({ hash, label, ip, ua }) {
+  try {
+    await sql`
+      INSERT INTO execution_logs (script_hash, script_label, script_type, ip, user_agent, executed_at)
+      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, ${ua}, ${Date.now()})
+    `;
+  } catch (e) {
+    console.error('[v2 loader] log write failed:', e.message);
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -49,9 +60,15 @@ export default async function handler(req, res) {
 
   if (!hash) return res.status(400).end('-- Not found');
 
+  const ip = getIP(req);
+  const ua = req.headers['user-agent'] || 'unknown';
+
   try {
-    const rows = await sql`SELECT content FROM scripts WHERE hash = ${hash}`;
+    const rows = await sql`SELECT content, label FROM scripts WHERE hash = ${hash}`;
     if (!rows.length) return res.status(404).end('-- Not found');
+
+    // Fire and forget log
+    writeLog({ hash, label: rows[0].label, ip, ua });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).end(rows[0].content);

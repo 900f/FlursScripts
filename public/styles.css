@@ -2009,3 +2009,120 @@ body {
 
 /* Permanently hide script.js injected logout button — we use our own */
 #admin-logout-btn { display: none !important; }
+
+/* ── EXECUTION LOGS TABLE ──────────────────────────────────────────────── */
+.logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-family: 'Courier New', monospace;
+}
+.logs-table thead tr {
+    background: rgba(124,109,250,0.06);
+    border-bottom: 1px solid var(--border);
+}
+.logs-table th {
+    padding: 0.65rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    white-space: nowrap;
+}
+.logs-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text);
+    white-space: nowrap;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+.logs-table tbody tr:hover {
+    background: rgba(124,109,250,0.04);
+}
+.logs-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.log-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.log-badge.v2 {
+    background: rgba(52,211,153,0.12);
+    color: #34d399;
+    border: 1px solid rgba(52,211,153,0.25);
+}
+.log-badge.v3 {
+    background: rgba(124,109,250,0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(124,109,250,0.25);
+}
+.log-ip {
+    font-family: 'Courier New', monospace;
+    color: var(--accent2);
+    font-size: 0.76rem;
+}
+.log-hash {
+    font-family: 'Courier New', monospace;
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+.log-time {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+.log-hwid {
+    font-size: 0.7rem;
+    color: #f59e0b;
+    font-family: 'Courier New', monospace;
+}
+.log-key {
+    font-size: 0.7rem;
+    color: #ec4899;
+    font-family: 'Courier New', monospace;
+}
+.log-ua {
+    font-size: 0.7rem;
+    color: var(--muted);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.log-none {
+    color: rgba(255,255,255,0.15);
+    font-style: italic;
+    font-size: 0.7rem;
+}
+.logs-top-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    background: rgba(124,109,250,0.08);
+    border: 1px solid rgba(124,109,250,0.18);
+    font-size: 0.76rem;
+    color: var(--text);
+    cursor: default;
+    transition: background 0.2s;
+}
+.logs-top-pill:hover { background: rgba(124,109,250,0.15); }
+.logs-top-pill .pill-count {
+    background: var(--accent2);
+    color: #fff;
+    border-radius: 10px;
+    padding: 0.05rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
