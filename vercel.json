@@ -1,26 +1,56 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/uploadscript/image/:id", "destination": "/api/uploadscript/image/[id]" },
-    { "source": "/files/v2/loader/:hash.lua",      "destination": "/api/files/v2/loader" },
-    { "source": "/api/files/v2/loader/:hash.lua",  "destination": "/api/files/v2/loader" },
-    { "source": "/api/loader/:hash.lua",           "destination": "/api/loader" },
-    { "source": "/files/v3/loader/:hash*.lua",     "destination": "/api/files/v3/loader" },
-    { "source": "/((?!api/).*)",                   "destination": "/public/$1" }
+    {
+      "source": "/api/uploadscript/image/:id",
+      "destination": "/api/uploadscript/image/[id]"
+    },
+    {
+      "source": "/files/v2/loader/:hash.lua",
+      "destination": "/api/files/v2/loader"
+    },
+    {
+      "source": "/api/files/v2/loader/:hash.lua",
+      "destination": "/api/files/v2/loader"
+    },
+    {
+      "source": "/api/loader/:hash.lua",
+      "destination": "/api/loader"
+    },
+    {
+      "source": "/files/v3/loader/:hash*.lua",
+      "destination": "/api/files/v3/loader"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/public/$1"
+    }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag",  "value": "noindex, nofollow" },
-        { "key": "Cache-Control", "value": "no-store" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
       ]
     },
     {
       "source": "/files/v3/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     }
   ]

@@ -36,11 +36,11 @@ function isBrowser(req) {
   return false;
 }
 
-async function writeLog({ hash, label, ip, ua }) {
+async function writeLog({ hash, label, ip, ua, robloxUsername, hwid }) {
   try {
     await sql`
       INSERT INTO execution_logs (script_hash, script_label, script_type, ip, hwid, roblox_username, user_agent, executed_at)
-      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, null, null, ${ua}, ${Date.now()})
+      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, ${hwid || null}, ${robloxUsername || null}, ${ua}, ${Date.now()})
     `;
   } catch (e) {
     console.error('[v2 loader] log write failed:', e.message);
@@ -63,12 +63,17 @@ export default async function handler(req, res) {
   const ip = getIP(req);
   const ua = req.headers['user-agent'] || 'unknown';
 
+  // Parse username + hwid from query string (sent by the wrapper loadstring)
+  const urlObj  = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const robloxUsername = urlObj.searchParams.get('u')    || null;
+  const hwid           = urlObj.searchParams.get('hwid') || null;
+
   try {
     const rows = await sql`SELECT content, label FROM scripts WHERE hash = ${hash}`;
     if (!rows.length) return res.status(404).end('-- Not found');
 
     // Fire and forget log
-    writeLog({ hash, label: rows[0].label, ip, ua });
+    writeLog({ hash, label: rows[0].label, ip, ua, robloxUsername, hwid });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).end(rows[0].content);

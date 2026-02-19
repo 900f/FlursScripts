@@ -389,7 +389,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getLoadstring(hash) {
-        return `loadstring(game:HttpGet("${API_BASE}/files/v2/loader/${hash}.lua", true))()`;
+        const url = `${API_BASE}/files/v2/loader/${hash}.lua`;
+        return `local _u=game:GetService("Players").LocalPlayer.Name;local _h=pcall(function()return game:GetService("RbxAnalyticsService"):GetClientId()end) and game:GetService("RbxAnalyticsService"):GetClientId() or "unknown";loadstring(game:HttpGet("${url}?u=".._u.."&hwid=".._h,true))()`;
     }
 
 
