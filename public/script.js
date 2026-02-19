@@ -382,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
-    const API_BASE = 'https://api.flurs.xyz';
+    const API_BASE = 'https://www.flurs.xyz';
 
     function getScriptUrl(hash) {
         return `${API_BASE}/files/v2/loader/${hash}.lua`;
