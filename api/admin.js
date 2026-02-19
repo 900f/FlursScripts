@@ -77,21 +77,45 @@ export default async function handler(req, res) {
   // ── trackhosted is public (called from Roblox, no admin password) ─────
   if (action === 'trackhosted') {
     try {
-      const { hash: h, username, gameId, gameName, serverId } = req.body || {};
-      if (!h) return res.status(400).json({ error: 'Missing hash' });
-      const existing = await getMeta(h);
+      // Support POST JSON body
+      const body = req.body || {};
+      // Support GET query params as fallback
+      const query = req.query || {};
+
+      const finalHash     = body.hash     || query.hash     || null;
+      const finalUsername = body.username || query.username || 'unknown';
+      const finalGameId   = body.gameId   || query.gameId   || null;
+      const finalGameName = body.gameName || query.gameName || null;
+      const finalServerId = body.serverId || query.serverId || null;
+
+      if (!finalHash) return res.status(400).json({ error: 'Missing hash' });
+
+      const existing = await getMeta(finalHash);
       if (!existing) return res.status(404).json({ error: 'Script not found' });
+
       existing.useCount = (existing.useCount || 0) + 1;
-      existing.usageLog = [{
+
+      // Initialize usageLog if missing
+      existing.usageLog = existing.usageLog || [];
+
+      // Add the new log entry
+      const newEntry = {
         ts:       Date.now(),
-        username: username || 'unknown',
+        username: finalUsername,
         ip:       ip,
-        gameId:   gameId   || null,
-        gameName: gameName || null,
-        serverId: serverId || null,
-      }];
+        gameId:   finalGameId,
+        gameName: finalGameName,
+        serverId: finalServerId,
+      };
+
+      existing.usageLog.push(newEntry);
       existing.lastUsed = Date.now();
-      await saveMeta(h, existing);
+
+      // Auto-remove any entries with username "unknown" (clean up bad logs)
+      existing.usageLog = existing.usageLog.filter(log => log.username !== 'unknown');
+
+      await saveMeta(finalHash, existing);
+
       return res.status(200).json({ ok: true });
     } catch (e) {
       console.error('trackhosted error:', e);
@@ -99,7 +123,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Password check ─────────────────────────────────────────────────────
+  // ── Password check for admin actions ───────────────────────────────────
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
     return unauthorized(res);
@@ -174,32 +198,6 @@ export default async function handler(req, res) {
       );
 
       return res.status(200).json({ ok: true, scripts: scripts.filter(Boolean) });
-    }
-
-    // ── TRACK HOSTED SCRIPT USE ──────────────────────────────────────────
-    if (action === 'trackhosted') {
-      const { hash, username, gameId, gameName, serverId } = req.body || {};
-      if (!hash) return res.status(400).json({ error: 'Missing hash' });
-      try {
-        const existing = await getMeta(hash);
-        if (!existing) return res.status(404).json({ error: 'Script not found' });
-        existing.useCount = (existing.useCount || 0) + 1;
-        // Only keep the single most recent log entry
-        existing.usageLog = [{
-          ts:       Date.now(),
-          username: username || 'unknown',
-          ip:       ip,
-          gameId:   gameId   || null,
-          gameName: gameName || null,
-          serverId: serverId || null,
-        }];
-        existing.lastUsed = Date.now();
-        await saveMeta(hash, existing);
-        return res.status(200).json({ ok: true });
-      } catch (e) {
-        console.error('trackhosted error:', e);
-        return res.status(500).json({ error: 'Track failed' });
-      }
     }
 
     return res.status(400).json({ error: 'Unknown action' });
