@@ -72,14 +72,13 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   }
 
-  const { action, password, hash, label, content } = req.body || {};
+  const body = req.body || {};
+  const { action, password, hash, label, content } = body;
 
-  // ── trackhosted is public (called from Roblox, no admin password) ─────
+  // ── trackhosted is public (called from Roblox client ping) ─────────────
   if (action === 'trackhosted') {
     try {
-      // Support POST JSON body
-      const body = req.body || {};
-      // Support GET query params as fallback
+      // Support POST body + GET query params fallback
       const query = req.query || {};
 
       const finalHash     = body.hash     || query.hash     || null;
@@ -88,17 +87,19 @@ export default async function handler(req, res) {
       const finalGameName = body.gameName || query.gameName || null;
       const finalServerId = body.serverId || query.serverId || null;
 
-      if (!finalHash) return res.status(400).json({ error: 'Missing hash' });
+      if (!finalHash) {
+        return res.status(400).json({ error: 'Missing hash' });
+      }
 
       const existing = await getMeta(finalHash);
-      if (!existing) return res.status(404).json({ error: 'Script not found' });
+      if (!existing) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
 
       existing.useCount = (existing.useCount || 0) + 1;
-
-      // Initialize usageLog if missing
       existing.usageLog = existing.usageLog || [];
 
-      // Add the new log entry
+      // Add the new entry (even if username is unknown for now)
       const newEntry = {
         ts:       Date.now(),
         username: finalUsername,
@@ -111,8 +112,10 @@ export default async function handler(req, res) {
       existing.usageLog.push(newEntry);
       existing.lastUsed = Date.now();
 
-      // Auto-remove any entries with username "unknown" (clean up bad logs)
+      // ── STRICTLY remove ALL entries with username "unknown" (old + new)
       existing.usageLog = existing.usageLog.filter(log => log.username !== 'unknown');
+
+      // If the array is now empty, that's intentional — only real usernames are kept
 
       await saveMeta(finalHash, existing);
 
@@ -123,18 +126,17 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Password check for admin actions ───────────────────────────────────
+  // ── All other actions require password ─────────────────────────────────
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
     return unauthorized(res);
   }
 
-  // Correct password — clear their failure count
+  // Correct password — clear failures
   clearFailures(ip);
 
   try {
-
-    // ── SAVE ──────────────────────────────────────────────────────────────
+    // SAVE
     if (action === 'save') {
       if (!hash || !content) return res.status(400).json({ error: 'Missing hash or content' });
 
@@ -152,7 +154,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, hash });
     }
 
-    // ── DELETE ────────────────────────────────────────────────────────────
+    // DELETE
     if (action === 'delete') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
       const { blobs } = await list({ prefix: `scripts/${hash}` });
@@ -160,7 +162,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ── GET (for admin editor) ────────────────────────────────────────────
+    // GET
     if (action === 'get') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
 
@@ -176,7 +178,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
     }
 
-    // ── RENAME (update label only) ────────────────────────────────────────
+    // RENAME
     if (action === 'rename') {
       if (!hash || !label) return res.status(400).json({ error: 'Missing hash or label' });
       const existing = await getMeta(hash);
@@ -185,7 +187,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ── LIST ──────────────────────────────────────────────────────────────
+    // LIST
     if (action === 'list') {
       const { blobs }   = await list({ prefix: 'scripts/' });
       const metaBlobs   = blobs.filter(b => b.pathname.endsWith('.meta.json'));
