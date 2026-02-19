@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     async function adminApi(payload) {
-        const res = await fetch('/api/admin', {
+        const res = await fetch(`${API_BASE}/api/admin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...payload, password: sessionPassword }),
