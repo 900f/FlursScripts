@@ -26,8 +26,6 @@ function isRateLimited(req) {
   return false;
 }
 
-// ── Extremely strict UA check ──────────────────────────────────────────────
-// Only allow: no UA, Roblox, WinINet. Block everything else including tools.
 const BLOCKED_UA_PATTERNS = [
   'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave',
   'wget', 'curl', 'python', 'postman', 'insomnia', 'httpie', 'axios',
@@ -40,36 +38,19 @@ const BLOCKED_UA_PATTERNS = [
 
 function isForbiddenRequest(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase().trim();
-
-  // Explicitly allow Roblox / WinINet executors
   if (ua.includes('roblox') || ua.includes('wininet')) return false;
-
-  // Block any known UA pattern
   for (const p of BLOCKED_UA_PATTERNS) {
     if (ua.includes(p)) return true;
   }
-
-  // Block common security tool headers
   if (req.headers['x-forwarded-host'] && req.headers['x-forwarded-host'] !== req.headers['host']) return true;
   if (req.headers['via']) return true;
   if (req.headers['x-real-ip'] && !req.headers['x-forwarded-for']) return true;
-
-  // If the UA is non-empty and not recognised, block it
   if (ua.length > 0) return true;
-
-  // Empty UA = likely executor
   return false;
 }
 
-// ── Print protection Lua wrapper ───────────────────────────────────────────
-// Wraps any hosted Lua in a sandboxed environment that:
-// 1. Overrides print/warn/tostring so they produce nothing or garbage
-// 2. Detects common dumping methods and kicks immediately
-// 3. Detects string.dump usage and terminates
-// 4. Makes loadstring return dummy functions on the raw string
-function wrapWithProtection(luaContent) {
-  // We embed the raw content as a loadstring to double-obfuscate it
-  // The outer shell intercepts any attempts to print/inspect
+function wrapWithProtection(luaContent, hash) {
+  const trackUrl = `https://api.flurs.xyz/api/admin?action=trackhosted&hash=${hash}`;
   return `-- Flurs Protected Loader v2
 do
     -- === ANTI-PRINT / ANTI-DUMP SHIELD ===
@@ -84,29 +65,26 @@ do
         pcall(function()
             _localPlayer:Kick("[Flurs] " .. (reason or "Anti-tamper triggered."))
         end)
-        -- Hard stop execution
         while true do task.wait(9e9) end
     end
 
-    -- Silence and trap print/warn
     local _junkStr = string.rep(string.char(math.random(33,126)), math.random(8000, 12000))
     rawset(_ENV, "print",   function(...) _kick("Unauthorised print detected.") end)
     rawset(_ENV, "warn",    function(...) _kick("Unauthorised warn detected.")  end)
     rawset(_ENV, "printidentity", function() _kick("printidentity blocked.") end)
 
-    -- Trap string.dump (script dumping)
-    if string and rawget(string, "dump") then
-        rawset(string, "dump", function() _kick("string.dump is not allowed.") end)
-    end
+    pcall(function()
+        if rawget(string, "dump") then
+            rawset(string, "dump", function() _kick("string.dump is not allowed.") end)
+        end
+    end)
 
-    -- Trap getscriptclosure / getscriptfunction (executor dump methods)
     for _, fn in ipairs({"getscriptclosure","getscriptfunction","dumpstring","decompile","getfuncs"}) do
         if rawget(_ENV, fn) then
             rawset(_ENV, fn, function() _kick("Dumping functions are not allowed.") end)
         end
     end
 
-    -- Trap require-based dumps
     local _origRequire = rawget(_ENV, "require")
     if _origRequire then
         rawset(_ENV, "require", function(m)
@@ -120,7 +98,6 @@ do
         end)
     end
 
-    -- Trap tostring on functions (a common reflection technique)
     local _origTostring = rawget(_ENV, "tostring") or tostring
     rawset(_ENV, "tostring", function(v)
         if type(v) == "function" then
@@ -129,18 +106,39 @@ do
         return _origTostring(v)
     end)
 
-    -- Run the actual script in a protected environment
+    -- === ANALYTICS PING ===
+    pcall(function()
+        local _lp = game:GetService("Players").LocalPlayer
+        local _username = _lp and _lp.Name or "unknown"
+        local _gameId   = tostring(game.PlaceId)
+        local _serverId = tostring(game.JobId)
+        local _ok, _gameName = pcall(function()
+            return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+        end)
+        game:GetService("HttpService"):RequestAsync({
+            Url    = "https://api.flurs.xyz/api/admin",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body   = game:GetService("HttpService"):JSONEncode({
+                action   = "trackhosted",
+                hash     = "${hash}",
+                username = _username,
+                gameId   = _gameId,
+                gameName = _ok and _gameName or nil,
+                serverId = _serverId,
+            }),
+        })
+    end)
+
     local _fn, _err = loadstring(${JSON.stringify(luaContent)})
     if not _fn then
         _kick("Script load failed.")
         return
     end
 
-    -- Set up a clean env for the inner script that inherits globals
-    -- but can't leak anything back
     local _ok, _runErr = pcall(_fn)
     if not _ok then
-        -- Silent fail — don't expose error text
+        -- Silent fail
     end
 end
 `;
@@ -168,8 +166,8 @@ export default async function handler(req, res) {
 
     if (!blobRes.ok) return res.status(404).end('-- Not found');
 
-    const rawContent  = await blobRes.text();
-    const protected_  = wrapWithProtection(rawContent);
+    const rawContent = await blobRes.text();
+    const protected_ = wrapWithProtection(rawContent, hash);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).end(protected_);

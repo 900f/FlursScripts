@@ -74,6 +74,30 @@ export default async function handler(req, res) {
 
   const { action, password, hash, label, content } = req.body || {};
 
+  // ── trackhosted is public (called from Roblox, no admin password) ─────
+  if (action === 'trackhosted') {
+    try {
+      const { hash: h, username, gameId, gameName, serverId } = req.body || {};
+      if (!h) return res.status(400).json({ error: 'Missing hash' });
+      const existing = await getMeta(h);
+      if (!existing) return res.status(404).json({ error: 'Script not found' });
+      existing.useCount = (existing.useCount || 0) + 1;
+      existing.usageLog = [{
+        ts:       Date.now(),
+        username: username || 'unknown',
+        gameId:   gameId   || null,
+        gameName: gameName || null,
+        serverId: serverId || null,
+      }];
+      existing.lastUsed = Date.now();
+      await saveMeta(h, existing);
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error('trackhosted error:', e);
+      return res.status(500).json({ error: 'Track failed' });
+    }
+  }
+
   // ── Password check ─────────────────────────────────────────────────────
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
@@ -149,6 +173,31 @@ export default async function handler(req, res) {
       );
 
       return res.status(200).json({ ok: true, scripts: scripts.filter(Boolean) });
+    }
+
+    // ── TRACK HOSTED SCRIPT USE ──────────────────────────────────────────
+    if (action === 'trackhosted') {
+      const { hash, username, gameId, gameName, serverId } = req.body || {};
+      if (!hash) return res.status(400).json({ error: 'Missing hash' });
+      try {
+        const existing = await getMeta(hash);
+        if (!existing) return res.status(404).json({ error: 'Script not found' });
+        existing.useCount = (existing.useCount || 0) + 1;
+        // Only keep the single most recent log entry
+        existing.usageLog = [{
+          ts:       Date.now(),
+          username: username || 'unknown',
+          gameId:   gameId   || null,
+          gameName: gameName || null,
+          serverId: serverId || null,
+        }];
+        existing.lastUsed = Date.now();
+        await saveMeta(hash, existing);
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        console.error('trackhosted error:', e);
+        return res.status(500).json({ error: 'Track failed' });
+      }
     }
 
     return res.status(400).json({ error: 'Unknown action' });
