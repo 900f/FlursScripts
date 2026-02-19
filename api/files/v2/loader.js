@@ -51,9 +51,10 @@ export default async function handler(req, res) {
 
   const execUrl = `https://api.flurs.xyz/api/files/v2/exec/${hash}.lua`;
 
-  const bootstrapper = `-- Flurs Loader
+  const bootstrapper = `-- Flurs Loader v2
 local hs = game:GetService("HttpService")
 
+-- HWID detection
 local hwid = "unknown"
 local ok1, h1 = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
@@ -67,20 +68,34 @@ else
     if ok2 and uid then hwid = uid end
 end
 
+-- Username detection
 local u = "unknown"
 local ok3, uname = pcall(function()
     return game:GetService("Players").LocalPlayer.Name
 end)
 if ok3 and uname then u = uname end
 
+-- Fetch script
 local url = "${execUrl}?u=" .. hs:UrlEncode(u) .. "&hwid=" .. hs:UrlEncode(hwid)
-local src = game:HttpGet(url, true)
-local fn, err = loadstring(src)
-if not fn then
-    warn("[Flurs] Script error: " .. tostring(err))
+local ok4, src = pcall(function()
+    return game:HttpGet(url, true)
+end)
+if not ok4 or type(src) ~= "string" or src == "" then
+    warn("[Flurs] Failed to fetch script: " .. tostring(src))
     return
 end
-fn()`;
+
+-- Execute script
+local fn, err = loadstring(src)
+if not fn then
+    warn("[Flurs] Parse error: " .. tostring(err))
+    return
+end
+
+local ok5, runErr = pcall(fn)
+if not ok5 then
+    warn("[Flurs] Runtime error: " .. tostring(runErr))
+end`;
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.status(200).end(bootstrapper);

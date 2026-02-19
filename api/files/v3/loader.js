@@ -1,10 +1,5 @@
 // api/files/v3/loader.js
 // Serves a Lua loader file per script hash.
-// The Lua file itself reads script_key from the executor environment,
-// calls your /api/keys validate endpoint via http_request (GET method),
-// and executes the protected script.
-//
-// URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
 // User runs:
 //   script_key="FLURS-XXXX-XXXX-XXXX-XXXX"
 //   loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()
@@ -33,6 +28,7 @@ function isRateLimited(ip) {
 }
 
 const BROWSER_UA = ['mozilla','chrome','safari','firefox','edge','opera','wget','python','postman','curl','insomnia','httpie'];
+
 function isBrowser(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     if (ua.includes('roblox') || ua.includes('wininet')) return false;
@@ -61,19 +57,34 @@ export default async function handler(req, res) {
 local _hash = "${hash}"
 local _api  = "${API}"
 
-local key = (getgenv and getgenv().script_key)
-         or (genv    and genv().script_key)
-         or (getfenv and getfenv().script_key)
+-- Key detection
+local key = nil
+local ok0, keyVal = pcall(function()
+    if getgenv then return getgenv().script_key end
+    return nil
+end)
+if ok0 and keyVal and keyVal ~= "" then
+    key = keyVal
+end
+if not key then
+    local ok0b, keyVal2 = pcall(function()
+        if genv then return genv().script_key end
+        return nil
+    end)
+    if ok0b and keyVal2 and keyVal2 ~= "" then key = keyVal2 end
+end
 
 if not key or key == "" then
-    error("[Flurs] No key set. Do: script_key=\\"YOUR-KEY\\"", 0)
+    error("[Flurs] No key found. Set it with: script_key=\\"YOUR-KEY\\" before running.", 0)
 end
 
 local hs = game:GetService("HttpService")
 
--- Get HWID (try multiple methods)
+-- HWID detection
 local hwid = "unknown"
-local ok1, h1 = pcall(function() return game:GetService("RbxAnalyticsService"):GetClientId() end)
+local ok1, h1 = pcall(function()
+    return game:GetService("RbxAnalyticsService"):GetClientId()
+end)
 if ok1 and h1 and h1 ~= "" then
     hwid = h1
 else
@@ -83,52 +94,77 @@ else
     if ok2 and h2 then hwid = h2 end
 end
 
--- Get Roblox username
+-- Username detection
 local robloxUsername = "unknown"
 local ok3, uname = pcall(function()
     return game:GetService("Players").LocalPlayer.Name
 end)
 if ok3 and uname then robloxUsername = uname end
 
--- Build query string
+-- Build request
 local query = "action=validate" ..
               "&key="            .. hs:UrlEncode(key) ..
               "&hwid="           .. hs:UrlEncode(hwid) ..
               "&robloxUsername=" .. hs:UrlEncode(robloxUsername) ..
               "&scriptHash="     .. hs:UrlEncode(_hash)
 
-local success, response = pcall(function()
+-- Send request
+local ok4, response = pcall(function()
     return http_request({
-        Url = _api .. "?" .. query,
-        Method = "GET",
+        Url     = _api .. "?" .. query,
+        Method  = "GET",
         Headers = { ["Accept"] = "application/json" }
     })
 end)
 
-if not success then
+if not ok4 then
     error("[Flurs] Request failed: " .. tostring(response), 0)
 end
 
-if response.StatusCode < 200 or response.StatusCode >= 300 then
-    error("[Flurs] Server error " .. tostring(response.StatusCode), 0)
+if not response or type(response.StatusCode) ~= "number" then
+    error("[Flurs] Invalid response from server", 0)
 end
 
+if response.StatusCode == 429 then
+    error("[Flurs] Rate limited. Wait a moment and try again.", 0)
+end
+
+if response.StatusCode == 401 or response.StatusCode == 403 then
+    error("[Flurs] Access denied (HTTP " .. response.StatusCode .. ")", 0)
+end
+
+if response.StatusCode < 200 or response.StatusCode >= 300 then
+    error("[Flurs] Server returned HTTP " .. tostring(response.StatusCode), 0)
+end
+
+-- Decode JSON
 local data
-local ok4, decodeErr = pcall(function()
+local ok5, decodeErr = pcall(function()
     data = hs:JSONDecode(response.Body)
 end)
 
-if not ok4 or type(data) ~= "table" then
-    error("[Flurs] Bad response: " .. tostring(response.Body:sub(1, 200)), 0)
+if not ok5 or type(data) ~= "table" then
+    error("[Flurs] Bad response from server: " .. tostring(response.Body and response.Body:sub(1, 100) or "empty"), 0)
 end
 
 if not data.ok then
     error("[Flurs] " .. tostring(data.error or "Access denied"), 0)
 end
 
-local fn, err = loadstring(data.content)
-if not fn then error("[Flurs] " .. tostring(err), 0) end
-fn()
+if type(data.content) ~= "string" or data.content == "" then
+    error("[Flurs] Server returned empty script content", 0)
+end
+
+-- Parse and execute
+local fn, parseErr = loadstring(data.content)
+if not fn then
+    error("[Flurs] Script parse error: " .. tostring(parseErr), 0)
+end
+
+local ok6, runErr = pcall(fn)
+if not ok6 then
+    error("[Flurs] Script runtime error: " .. tostring(runErr), 0)
+end
 `;
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
