@@ -1967,7 +1967,7 @@ fn()`;
             const searchInput = document.getElementById('key-user-search');
             const detailClose = document.getElementById('key-user-detail-close');
 
-            if (refreshBtn)  refreshBtn.addEventListener('click', loadKeyUsers);
+            if (refreshBtn)  refreshBtn.addEventListener('click', function() { loadKeyUsers(); });
             if (detailClose) detailClose.addEventListener('click', function() {
                 document.getElementById('key-user-detail-card').style.display = 'none';
             });
