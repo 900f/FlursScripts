@@ -85,6 +85,7 @@ export default async function handler(req, res) {
       existing.usageLog = [{
         ts:       Date.now(),
         username: username || 'unknown',
+        ip:       ip,
         gameId:   gameId   || null,
         gameName: gameName || null,
         serverId: serverId || null,
@@ -187,6 +188,7 @@ export default async function handler(req, res) {
         existing.usageLog = [{
           ts:       Date.now(),
           username: username || 'unknown',
+          ip:       ip,
           gameId:   gameId   || null,
           gameName: gameName || null,
           serverId: serverId || null,
