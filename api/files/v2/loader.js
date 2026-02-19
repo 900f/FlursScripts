@@ -1,5 +1,5 @@
 // api/files/v2/loader.js
-// Hybrid v3-style logging for v2 scripts: validates via /api/keys, logs real username
+// Serves a raw Lua script. Executor-only. Tracks usage server-side + client ping for full logging.
 
 import { put, list } from '@vercel/blob';
 
@@ -44,45 +44,40 @@ function isForbiddenRequest(req) {
   for (const p of BLOCKED_UA_PATTERNS) {
     if (ua.includes(p)) return true;
   }
+  if (req.headers['x-forwarded-host'] && req.headers['x-forwarded-host'] !== req.headers['host']) return true;
   if (req.headers['via']) return true;
+  if (req.headers['x-real-ip'] && !req.headers['x-forwarded-for']) return true;
   if (ua.length > 0) return true;
   return false;
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-
-  if (req.method !== 'GET')    return res.status(405).end('-- Method Not Allowed');
-  if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
-  if (isRateLimited(req))      return res.status(429).end('-- Slow down');
-
-  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
-  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-  if (!hash) return res.status(400).end('-- Not found');
-
-  const ip = getIP(req);
-
+// ── Server-side basic tracking (IP + count) ────────────────────────────────
+async function trackUse(hash, ip) {
   try {
-    const url     = `${BLOB_BASE_URL}/scripts/${hash}.lua`;
-    const blobRes = await fetch(url, {
-      headers: BLOB_TOKEN ? { Authorization: `Bearer ${BLOB_TOKEN}` } : {},
+    const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
+    const metaBlob  = blobs.find(b => b.pathname === `scripts/${hash}.meta.json`);
+    if (!metaBlob) return;
+    const meta = await fetch(metaBlob.url + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+    meta.useCount = (meta.useCount || 0) + 1;
+    meta.usageLog = meta.usageLog || [];
+    meta.usageLog.push({
+      ts:       Date.now(),
+      ip:       ip || 'unknown',
+      username: 'unknown', // client will send better data
     });
+    meta.lastUsed = Date.now();
+    await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
+      access: 'public', contentType: 'application/json', addRandomSuffix: false,
+    });
+  } catch (e) {
+    console.error('trackUse error:', e);
+  }
+}
 
-    if (!blobRes.ok) return res.status(404).end('-- Not found');
-
-    const rawContent = await blobRes.text();
-
-    const API = 'https://api.flurs.xyz/api/keys';
-
-    const lua = `-- Flurs Protected Loader v2 with v3-style logging
+function wrapWithProtection(luaContent, hash) {  // hash is now passed in
+  return `-- Flurs Protected Loader v2 (with working usage logging)
 do
-    local _hash = "${hash}"
-    local _api  = "${API}"
-
-    -- ANTI-TAMPER (your original v2 protections)
-    local _ENV   = getfenv and getfenv(0) or _G
+    local _ENV = getfenv and getfenv(0) or _G
     local _ps    = game:GetService("Players")
     local _lp    = _ps.LocalPlayer
 
@@ -126,74 +121,86 @@ do
         return _origTostring(v)
     end)
 
-    -- v3-style key validation + logging
-    local key = (getgenv and getgenv().script_key)
-             or (genv    and genv().script_key)
-             or (getfenv and getfenv().script_key) or ""
+    local _fn, _err = loadstring(${JSON.stringify(luaContent)})
+    if not _fn then _kick("Script load failed.") return end
+    local _ok, _runErr = pcall(_fn)
 
-    -- Optional: require key (uncomment if you want to force it)
-    -- if key == "" then error("[Flurs] script_key = \\"YOUR-KEY\\" required", 0) end
+    -- ── Silent usage logging ping ───────────────────────────────────────────
+    task.spawn(function()
+        pcall(function()
+            local hs = game:GetService("HttpService")
+            local username = _lp and _lp.Name or "unknown"
+            local gameId   = game.PlaceId
+            local serverId = game.JobId
+            local gameName = "unknown"
 
-    local hwid = "unknown"
-    pcall(function()
-        hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+            -- Try to get real game name (fallback to "unknown")
+            pcall(function()
+                local resp = hs:GetAsync("https://games.roblox.com/v1/games?universeIds=" .. game.GameId)
+                local info = hs:JSONDecode(resp)
+                gameName = info.data[1].name or "unknown"
+            end)
+
+            local data = {
+                hash     = "${hash}",
+                username = username,
+                gameId   = gameId,
+                gameName = gameName,
+                serverId = serverId
+            }
+
+            local baseUrl = "https://api.flurs.xyz/api/admin?action=trackhosted"  -- ← change if your domain is different
+
+            -- Try executor-friendly request methods first, fallback to HttpService GET
+            local req = request or (syn and syn.request) or http_request or (http and http.request)
+            if req then
+                req({
+                    Url     = baseUrl,
+                    Method  = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body    = hs:JSONEncode(data)
+                })
+            else
+                local query = hs:UrlEncode(hs:JSONEncode(data))
+                hs:GetAsync(baseUrl .. "&" .. query)
+            end
+        end)
     end)
 
-    local username = "unknown"
-    pcall(function()
-        username = game.Players.LocalPlayer.Name
-    end)
+end
+`;
+}
 
-    local hs = game:GetService("HttpService")
-    local query = "action=validate"
-                .. "&key="        .. hs:UrlEncode(key)
-                .. "&hwid="       .. hs:UrlEncode(hwid)
-                .. "&scriptHash=" .. hs:UrlEncode(_hash)
-                .. "&username="   .. hs:UrlEncode(username)
+export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
-    local success, response = pcall(function()
-        return http_request({
-            Url     = _api .. "?" .. query,
-            Method  = "GET",
-            Headers = { ["Accept"] = "application/json" }
-        })
-    end)
+  if (req.method !== 'GET')    return res.status(405).end('-- Method Not Allowed');
+  if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
+  if (isRateLimited(req))      return res.status(429).end('-- Slow down');
 
-    if not success then
-        _kick("Validation request failed")
-        return
-    end
+  const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
+  const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
+  if (!hash) return res.status(400).end('-- Not found');
 
-    if response.StatusCode < 200 or response.StatusCode >= 300 then
-        _kick("Server denied access (" .. response.StatusCode .. ")")
-        return
-    end
+  const ip = getIP(req);
 
-    local data
-    pcall(function()
-        data = hs:JSONDecode(response.Body)
-    end)
+  try {
+    const url     = `${BLOB_BASE_URL}/scripts/${hash}.lua`;
+    const blobRes = await fetch(url, {
+      headers: BLOB_TOKEN ? { Authorization: `Bearer ${BLOB_TOKEN}` } : {},
+    });
 
-    if not data or not data.ok or not data.content then
-        _kick("Invalid response from server")
-        return
-    end
+    if (!blobRes.ok) return res.status(404).end('-- Not found');
 
-    -- Execute the protected content
-    local fn, err = loadstring(data.content)
-    if not fn then
-        _kick("Script load failed: " .. tostring(err))
-        return
-    end
+    const rawContent = await blobRes.text();
 
-    pcall(fn)
-end`;
-
-    // Optional: keep basic server-side IP count if you want
-    // trackUse(hash, ip);
+    // Server-side IP tracking (still runs)
+    trackUse(hash, ip);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(lua);
+    return res.status(200).end(wrapWithProtection(rawContent, hash));
 
   } catch (err) {
     console.error('Loader v2 error:', err);
