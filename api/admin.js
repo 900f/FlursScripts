@@ -1,18 +1,16 @@
 // api/admin.js
 
-import { put, del, list } from '@vercel/blob';
+import { sql } from '../../lib/db';  // Adjust path: e.g. '../../../lib/db' depending on your folder structure
 
-// ── No fallback password — fail loud if env var is missing ──────────────
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD environment variable is not set');
 
-// ── Simple in-memory rate limiter (resets on cold start, good enough) ───
-const attempts = new Map(); // ip -> { count, resetAt }
-const MAX_ATTEMPTS = 10;    // max failed attempts
-const WINDOW_MS    = 15 * 60 * 1000; // 15 minute window
+const attempts = new Map();
+const MAX_ATTEMPTS = 10;
+const WINDOW_MS = 15 * 60 * 1000;
 
 function isRateLimited(ip) {
-  const now  = Date.now();
+  const now = Date.now();
   const entry = attempts.get(ip);
   if (!entry || now > entry.resetAt) {
     attempts.set(ip, { count: 0, resetAt: now + WINDOW_MS });
@@ -22,7 +20,7 @@ function isRateLimited(ip) {
 }
 
 function recordFailure(ip) {
-  const now   = Date.now();
+  const now = Date.now();
   const entry = attempts.get(ip) || { count: 0, resetAt: now + WINDOW_MS };
   entry.count += 1;
   attempts.set(ip, entry);
@@ -37,20 +35,11 @@ function unauthorized(res) {
 }
 
 async function getMeta(hash) {
-  const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
-  const metaBlob  = blobs.find(b => b.pathname === `scripts/${hash}.meta.json`);
-  if (!metaBlob) return null;
-  return fetch(metaBlob.url).then(r => r.json());
-}
-
-async function saveMeta(hash, meta) {
-  await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
-    access: 'public', contentType: 'application/json', addRandomSuffix: false,
-  });
+  const rows = await sql`SELECT * FROM scripts WHERE hash = ${hash}`;
+  return rows[0] || null;
 }
 
 export default async function handler(req, res) {
-  // ── Lock CORS to your own origin only ─────────────────────────────────
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://flurs.xyz';
   const origin = req.headers.origin || '';
 
@@ -63,9 +52,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')    return res.status(405).json({ error: 'Method Not Allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  // ── Rate limiting ──────────────────────────────────────────────────────
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 
   if (isRateLimited(ip)) {
@@ -74,24 +62,32 @@ export default async function handler(req, res) {
 
   const { action, password, hash, label, content } = req.body || {};
 
-  // ── trackhosted is public (called from Roblox, no admin password) ─────
   if (action === 'trackhosted') {
     try {
       const { hash: h, username, gameId, gameName, serverId } = req.body || {};
       if (!h) return res.status(400).json({ error: 'Missing hash' });
+
       const existing = await getMeta(h);
       if (!existing) return res.status(404).json({ error: 'Script not found' });
-      existing.useCount = (existing.useCount || 0) + 1;
-      existing.usageLog = [{
-        ts:       Date.now(),
+
+      const newLog = {
+        ts: Date.now(),
         username: username || 'unknown',
-        ip:       ip,
-        gameId:   gameId   || null,
+        ip,
+        gameId: gameId || null,
         gameName: gameName || null,
         serverId: serverId || null,
-      }];
-      existing.lastUsed = Date.now();
-      await saveMeta(h, existing);
+      };
+
+      await sql`
+        UPDATE scripts
+        SET 
+          use_count = use_count + 1,
+          usage_log = jsonb_insert(usage_log, '{0}', ${JSON.stringify(newLog)}::jsonb),
+          last_used = ${Date.now()}
+        WHERE hash = ${h}
+      `;
+
       return res.status(200).json({ ok: true });
     } catch (e) {
       console.error('trackhosted error:', e);
@@ -99,111 +95,67 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Password check ─────────────────────────────────────────────────────
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
     return unauthorized(res);
   }
 
-  // Correct password — clear their failure count
   clearFailures(ip);
 
   try {
-
-    // ── SAVE ──────────────────────────────────────────────────────────────
     if (action === 'save') {
       if (!hash || !content) return res.status(400).json({ error: 'Missing hash or content' });
 
-      await put(`scripts/${hash}.lua`, content, {
-        access: 'public', contentType: 'text/plain', addRandomSuffix: false,
-      });
-
-      const existing = await getMeta(hash);
-      await saveMeta(hash, {
-        hash,
-        label:   label || existing?.label || 'Unnamed',
-        created: existing?.created || Date.now(),
-      });
+      await sql`
+        INSERT INTO scripts (hash, label, content, created_at)
+        VALUES (${hash}, ${label || 'Unnamed'}, ${content}, ${Date.now()})
+        ON CONFLICT (hash) DO UPDATE SET
+          label = EXCLUDED.label,
+          content = EXCLUDED.content
+      `;
 
       return res.status(200).json({ ok: true, hash });
     }
 
-    // ── DELETE ────────────────────────────────────────────────────────────
     if (action === 'delete') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
-      const { blobs } = await list({ prefix: `scripts/${hash}` });
-      await Promise.all(blobs.map(b => del(b.url)));
+      await sql`DELETE FROM scripts WHERE hash = ${hash}`;
       return res.status(200).json({ ok: true });
     }
 
-    // ── GET (for admin editor) ────────────────────────────────────────────
     if (action === 'get') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
 
-      const { blobs } = await list({ prefix: `scripts/${hash}.lua` });
-      const luaBlob   = blobs.find(b => b.pathname === `scripts/${hash}.lua`);
-      if (!luaBlob) return res.status(404).json({ error: 'Script not found' });
+      const meta = await getMeta(hash);
+      if (!meta) return res.status(404).json({ error: 'Script not found' });
 
-      const [content, meta] = await Promise.all([
-        fetch(luaBlob.url).then(r => r.text()),
-        getMeta(hash),
-      ]);
-
-      return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
+      return res.status(200).json({
+        ok: true,
+        hash,
+        label: meta.label || 'Unnamed',
+        content: meta.content,
+      });
     }
 
-    // ── RENAME (update label only) ────────────────────────────────────────
     if (action === 'rename') {
       if (!hash || !label) return res.status(400).json({ error: 'Missing hash or label' });
       const existing = await getMeta(hash);
       if (!existing) return res.status(404).json({ error: 'Script not found' });
-      await saveMeta(hash, { ...existing, label: label.trim() });
+
+      await sql`UPDATE scripts SET label = ${label.trim()} WHERE hash = ${hash}`;
       return res.status(200).json({ ok: true });
     }
 
-    // ── LIST ──────────────────────────────────────────────────────────────
     if (action === 'list') {
-      const { blobs }   = await list({ prefix: 'scripts/' });
-      const metaBlobs   = blobs.filter(b => b.pathname.endsWith('.meta.json'));
-
-      const scripts = await Promise.all(
-        metaBlobs.map(async b => {
-          try { return await fetch(b.url).then(r => r.json()); }
-          catch { return null; }
-        })
-      );
-
-      return res.status(200).json({ ok: true, scripts: scripts.filter(Boolean) });
-    }
-
-    // ── TRACK HOSTED SCRIPT USE ──────────────────────────────────────────
-    if (action === 'trackhosted') {
-      const { hash, username, gameId, gameName, serverId } = req.body || {};
-      if (!hash) return res.status(400).json({ error: 'Missing hash' });
-      try {
-        const existing = await getMeta(hash);
-        if (!existing) return res.status(404).json({ error: 'Script not found' });
-        existing.useCount = (existing.useCount || 0) + 1;
-        // Only keep the single most recent log entry
-        existing.usageLog = [{
-          ts:       Date.now(),
-          username: username || 'unknown',
-          ip:       ip,
-          gameId:   gameId   || null,
-          gameName: gameName || null,
-          serverId: serverId || null,
-        }];
-        existing.lastUsed = Date.now();
-        await saveMeta(hash, existing);
-        return res.status(200).json({ ok: true });
-      } catch (e) {
-        console.error('trackhosted error:', e);
-        return res.status(500).json({ error: 'Track failed' });
-      }
+      const rows = await sql`
+        SELECT hash, label, created_at, use_count, last_used
+        FROM scripts
+        ORDER BY created_at DESC
+      `;
+      return res.status(200).json({ ok: true, scripts: rows });
     }
 
     return res.status(400).json({ error: 'Unknown action' });
-
   } catch (err) {
     console.error('Admin error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
