@@ -231,14 +231,13 @@ async function handleValidate(req, res, params, ip) {
     const now = Date.now();
     keyData.lastUsed  = now;
     keyData.useCount  = (keyData.useCount || 0) + 1;
-    keyData.usageLog  = keyData.usageLog || [];
-    keyData.usageLog.unshift({ 
-        ts: now, 
-        ip, 
+    // Only keep the single most recent log entry — new one replaces the old
+    keyData.usageLog = [{
+        ts: now,
+        ip,
         hwid: hwid || null,
         username: username || 'unknown',
-    });
-    if (keyData.usageLog.length > 50) keyData.usageLog = keyData.usageLog.slice(0, 50);
+    }];
 
     // Track last known username
     if (username && username !== 'unknown') {
