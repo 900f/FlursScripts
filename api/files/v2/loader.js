@@ -57,7 +57,7 @@ async function trackUse(hash, ip) {
     const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
     const metaBlob  = blobs.find(b => b.pathname === `scripts/${hash}.meta.json`);
     if (!metaBlob) return;
-    const meta = await fetch(metaBlob.url).then(r => r.json());
+    const meta = await fetch(metaBlob.url + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
     meta.useCount = (meta.useCount || 0) + 1;
     meta.usageLog = [{
       ts:       Date.now(),

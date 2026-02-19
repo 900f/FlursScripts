@@ -33,13 +33,32 @@ function clearFailures(ip) {
     attempts.delete(ip); 
 }
 
-// ── Security event log (in-memory ring buffer, last 200 events) ──────────
-const securityLog = [];
+// ── Security event log (persisted to blob storage) ───────────────────────
+const SEC_LOG_KEY = 'security/log.json';
 const SEC_LOG_MAX = 200;
 
-function logSecurityEvent(type, details) {
-    securityLog.unshift({ ts: Date.now(), type, ...details });
-    if (securityLog.length > SEC_LOG_MAX) securityLog.pop();
+async function logSecurityEvent(type, details) {
+    try {
+        let events = await getSecurityLog();
+        events.unshift({ ts: Date.now(), type, ...details });
+        if (events.length > SEC_LOG_MAX) events = events.slice(0, SEC_LOG_MAX);
+        await put(SEC_LOG_KEY, JSON.stringify(events), {
+            access: 'public', contentType: 'application/json', addRandomSuffix: false,
+        });
+    } catch (e) {
+        console.error('logSecurityEvent error:', e);
+    }
+}
+
+async function getSecurityLog() {
+    try {
+        const { blobs } = await list({ prefix: SEC_LOG_KEY });
+        const b = blobs.find(x => x.pathname === SEC_LOG_KEY);
+        if (!b) return [];
+        return fetch(b.url).then(r => r.json());
+    } catch {
+        return [];
+    }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -130,7 +149,7 @@ export default async function handler(req, res) {
     // ── Rate limiting ────────────────────────────────────────────────────
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
     if (isRateLimited(ip)) {
-        logSecurityEvent('rate_limited', { ip });
+        await logSecurityEvent('rate_limited', { ip });
         return res.status(429).json({ error: 'Too many requests.' });
     }
 
@@ -159,7 +178,7 @@ export default async function handler(req, res) {
 
     if (!password || password !== ADMIN_PASSWORD) {
         recordFailure(ip);
-        logSecurityEvent('bad_admin_password', { ip });
+        await logSecurityEvent('bad_admin_password', { ip });
         return res.status(401).json({ error: 'Unauthorized' });
     }
     clearFailures(ip);
@@ -196,15 +215,15 @@ async function handleValidate(req, res, params, ip) {
     const keyData = allKeys.find(k => k.key === key);
 
     if (!keyData) {
-        logSecurityEvent('invalid_key', { ip, key: key.slice(0, 8) + '…', scriptHash, username });
+        await logSecurityEvent('invalid_key', { ip, key: key.slice(0, 8) + '…', scriptHash, username });
         return res.status(403).json({ ok: false, error: 'Invalid key' });
     }
     if (keyData.revoked) {
-        logSecurityEvent('revoked_key_used', { ip, keyId: keyData.id, username });
+        await logSecurityEvent('revoked_key_used', { ip, keyId: keyData.id, username });
         return res.status(403).json({ ok: false, error: 'Key has been revoked' });
     }
     if (keyData.blacklisted) {
-        logSecurityEvent('blacklisted_key_used', { ip, keyId: keyData.id, username });
+        await logSecurityEvent('blacklisted_key_used', { ip, keyId: keyData.id, username });
         return res.status(403).json({ ok: false, error: 'Key is blacklisted' });
     }
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
@@ -214,7 +233,7 @@ async function handleValidate(req, res, params, ip) {
         return res.status(403).json({ ok: false, error: 'Key has reached its maximum uses' });
     }
     if (keyData.scriptHash && keyData.scriptHash !== scriptHash) {
-        logSecurityEvent('wrong_script_key', { ip, keyId: keyData.id, scriptHash, username });
+        await logSecurityEvent('wrong_script_key', { ip, keyId: keyData.id, scriptHash, username });
         return res.status(403).json({ ok: false, error: 'Key is not valid for this script' });
     }
 
@@ -222,20 +241,19 @@ async function handleValidate(req, res, params, ip) {
         if (!keyData.hwid) {
             keyData.hwid = hwid;
         } else if (keyData.hwid !== hwid) {
-            logSecurityEvent('hwid_mismatch', { ip, keyId: keyData.id, username, expectedHwid: keyData.hwid.slice(0,8)+'…' });
+            await logSecurityEvent('hwid_mismatch', { ip, keyId: keyData.id, username, expectedHwid: keyData.hwid.slice(0,8)+'…' });
             return res.status(403).json({ ok: false, error: 'HWID mismatch — wrong device' });
         }
     }
 
-    // Log usage with Roblox username
+    // Log usage — keep only the single most recent entry
     const now = Date.now();
     keyData.lastUsed  = now;
     keyData.useCount  = (keyData.useCount || 0) + 1;
-    // Only keep the single most recent log entry — new one replaces the old
-    keyData.usageLog = [{
-        ts: now,
+    keyData.usageLog  = [{
+        ts:       now,
         ip,
-        hwid: hwid || null,
+        hwid:     hwid || null,
         username: username || 'unknown',
     }];
 
@@ -425,7 +443,8 @@ async function handleScriptAnalytics(res, params) {
 
 // ── SECURITY LOG ──────────────────────────────────────────────────────────
 async function handleSecurityLog(res) {
-    return res.status(200).json({ ok: true, events: securityLog });
+    const events = await getSecurityLog();
+    return res.status(200).json({ ok: true, events });
 }
 
 // ── KEY USERS (who used a specific key) ──────────────────────────────────
