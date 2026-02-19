@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/uploadscript/image/:id",
-      "destination": "/api/uploadscript/image/[id]"
+      "destination": "/api/scriptimage"
     },
     {
       "source": "/files/v2/loader/:hash.lua",
