@@ -1,6 +1,6 @@
 // pages/api/script.js
-// Serves hosted Lua scripts - blocks browsers, allows Roblox executors
-import { list } from '@vercel/blob';
+// Serves hosted Lua scripts from DB - blocks browsers, allows Roblox executors
+import { sql } from '../../lib/db.js';
 
 const BLOCKED_UA_PATTERNS = [
   'mozilla', 'chrome', 'safari', 'firefox', 'edge',
@@ -35,20 +35,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { blobs } = await list({ prefix: `scripts/${hash}.lua` });
-    const blob = blobs.find(b => b.pathname === `scripts/${hash}.lua`);
+    const rows = await sql`SELECT content FROM scripts WHERE hash = ${hash}`;
 
-    if (!blob) {
+    if (!rows.length || !rows[0].content) {
       return res.status(404).end('-- Script not found');
     }
-
-    const response = await fetch(blob.url);
-    const content = await response.text();
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.status(200).end(content);
+    return res.status(200).end(rows[0].content);
 
   } catch (err) {
     console.error('Script serve error:', err);
