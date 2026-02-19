@@ -1,7 +1,13 @@
 // api/files/v3/loader.js
 // Serves a Lua loader file per script hash.
-// - Overrides print/warn so any attempt to read source kicks the player
-// - URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
+// The Lua file itself reads script_key from the executor environment,
+// calls your /api/keys validate endpoint via http_request (GET method),
+// and executes the protected script.
+//
+// URL: https://api.flurs.xyz/files/v3/loader/HASH.lua
+// User runs:
+//   script_key="FLURS-XXXX-XXXX-XXXX-XXXX"
+//   loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()
 
 const RATE_LIMIT_WINDOW = 15 * 1000;
 const RATE_LIMIT_MAX    = 20;
@@ -35,72 +41,6 @@ function isBrowser(req) {
     return false;
 }
 
-// ── Anti-tamper Lua header injected before every script ──────────────────
-// Overrides print, warn, tostring globally so that if someone wraps the
-// loadstring in print() or tries to read the source, they get kicked instead.
-const ANTI_PRINT_LUA = `
--- [[ Flurs Anti-Tamper ]] --
-do
-    local _kick = function(reason)
-        pcall(function()
-            game:GetService("Players").LocalPlayer:Kick(reason or "Do not attempt to reverse this script")
-        end)
-        error("", 0)
-    end
-
-    -- Detect if this script is being printed / source-read
-    local _rawprint = print
-    local _rawwarn  = warn
-    local _rawtostr = tostring
-
-    -- Override print so printing the function/table kicks
-    local _blocked = false
-    local function _guard(...)
-        if _blocked then return end
-        local args = {...}
-        for _, v in ipairs(args) do
-            local t = type(v)
-            if t == "function" or t == "table" then
-                _blocked = true
-                _kick("Do not attempt to reverse this script")
-                return
-            end
-        end
-        return _rawprint(...)
-    end
-
-    -- Override warn similarly
-    local function _guardwarn(...)
-        if _blocked then return end
-        local args = {...}
-        for _, v in ipairs(args) do
-            local t = type(v)
-            if t == "function" or t == "table" then
-                _blocked = true
-                _kick("Do not attempt to reverse this script")
-                return
-            end
-        end
-        return _rawwarn(...)
-    end
-
-    -- Block getfenv/debug access to our environment
-    local _origGetfenv = getfenv
-    getfenv = function(f)
-        if f == nil or f == 0 or f == 1 then
-            _kick("Do not attempt to reverse this script")
-            return {}
-        end
-        return _origGetfenv(f)
-    end
-
-    -- Seal our overrides globally
-    rawset(_G, "print", _guard)
-    rawset(_G, "warn",  _guardwarn)
-end
--- [[ End Anti-Tamper ]] --
-`.trim();
-
 export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -117,15 +57,13 @@ export default async function handler(req, res) {
 
     const API = 'https://api.flurs.xyz/api/keys';
 
-    const lua = `-- Flurs Loader (v3) | https://flurs.xyz
+    const lua = `-- Flurs Loader (http_request GET version) | https://flurs.xyz
 local _hash = "${hash}"
 local _api  = "${API}"
 
-${ANTI_PRINT_LUA}
-
 local key = (getgenv and getgenv().script_key)
          or (genv    and genv().script_key)
-         or (getfenv and getfenv(0).script_key)
+         or (getfenv and getfenv().script_key)
 
 if not key or key == "" then
     error("[Flurs] No key set. Run this first: script_key=\\"YOUR-KEY\\"", 0)
@@ -135,10 +73,10 @@ local ok_hwid, hwid = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
 end)
 
--- Build query string
+-- Build query string (safely encoded)
 local query = "action=validate" ..
-              "&key="        .. game:GetService("HttpService"):UrlEncode(key) ..
-              "&hwid="       .. game:GetService("HttpService"):UrlEncode(ok_hwid and hwid or "unknown") ..
+              "&key="       .. game:GetService("HttpService"):UrlEncode(key) ..
+              "&hwid="      .. game:GetService("HttpService"):UrlEncode(ok_hwid and hwid or "unknown") ..
               "&scriptHash=" .. game:GetService("HttpService"):UrlEncode(_hash)
 
 local success, response = pcall(function()
@@ -147,17 +85,17 @@ local success, response = pcall(function()
         Method = "GET",
         Headers = {
             ["Accept"] = "application/json",
-            ["Content-Type"] = "application/json"
+            ["Content-Type"] = "application/json"  -- harmless for GET
         }
     })
 end)
 
 if not success then
-    error("[Flurs] http_request failed: " .. tostring(response), 0)
+    error("[Flurs] http_request failed to send: " .. tostring(response), 0)
 end
 
 if response.StatusCode < 200 or response.StatusCode >= 300 then
-    error("[Flurs] Server error " .. tostring(response.StatusCode), 0)
+    error("[Flurs] Server error - " .. tostring(response.StatusCode) .. " " .. tostring(response.StatusMessage), 0)
 end
 
 local hs = game:GetService("HttpService")
@@ -167,7 +105,7 @@ local ok, decodeErr = pcall(function()
 end)
 
 if not ok or type(data) ~= "table" then
-    error("[Flurs] Bad response from server", 0)
+    error("[Flurs] Bad JSON response from server: " .. tostring(response.Body:sub(1, 200)), 0)
 end
 
 if not data.ok then

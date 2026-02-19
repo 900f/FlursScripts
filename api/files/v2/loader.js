@@ -1,5 +1,4 @@
 // api/files/v2/loader.js
-// Serves raw hosted Lua scripts with anti-tamper print/source protection.
 
 const BLOB_BASE_URL      = 'https://anynovmwoyinocra.public.blob.vercel-storage.com';
 const BLOB_TOKEN         = process.env.BLOB_READ_WRITE_TOKEN;
@@ -36,64 +35,6 @@ function isBrowser(req) {
   return false;
 }
 
-// ── Anti-tamper header: override print/warn/getfenv to kick on abuse ─────
-const ANTI_PRINT_LUA = `
--- [[ Flurs Anti-Tamper ]] --
-do
-    local _kick = function(reason)
-        pcall(function()
-            game:GetService("Players").LocalPlayer:Kick(reason or "Do not attempt to reverse this script")
-        end)
-        error("", 0)
-    end
-
-    local _rawprint = print
-    local _rawwarn  = warn
-    local _blocked  = false
-
-    local function _guard(...)
-        if _blocked then return end
-        local args = {...}
-        for _, v in ipairs(args) do
-            local t = type(v)
-            if t == "function" or t == "table" then
-                _blocked = true
-                _kick("Do not attempt to reverse this script")
-                return
-            end
-        end
-        return _rawprint(...)
-    end
-
-    local function _guardwarn(...)
-        if _blocked then return end
-        local args = {...}
-        for _, v in ipairs(args) do
-            local t = type(v)
-            if t == "function" or t == "table" then
-                _blocked = true
-                _kick("Do not attempt to reverse this script")
-                return
-            end
-        end
-        return _rawwarn(...)
-    end
-
-    local _origGetfenv = getfenv
-    getfenv = function(f)
-        if f == nil or f == 0 or f == 1 then
-            _kick("Do not attempt to reverse this script")
-            return {}
-        end
-        return _origGetfenv(f)
-    end
-
-    rawset(_G, "print", _guard)
-    rawset(_G, "warn",  _guardwarn)
-end
--- [[ End Anti-Tamper ]] --
-`.trim();
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -115,12 +56,9 @@ export default async function handler(req, res) {
 
     if (!blobRes.ok) return res.status(404).end('-- Not found');
 
-    // Prepend anti-tamper header to every script served
-    const scriptContent = await blobRes.text();
-    const fullContent   = ANTI_PRINT_LUA + '\n\n' + scriptContent;
-
+    const content = await blobRes.text();
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(fullContent);
+    return res.status(200).end(content);
 
   } catch (err) {
     console.error('Loader error:', err);

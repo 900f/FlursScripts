@@ -375,13 +375,6 @@
                             <i class="fa-solid fa-lock"></i>
                             <span>Upload Key Script</span>
                         </button>
-                        <div class="dash-nav-divider"></div>
-                        <div class="dash-nav-section-label">Obfuscation</div>
-                        <button class="dash-nav-item" data-tab="bootstrap">
-                            <i class="fa-solid fa-shield-virus"></i>
-                            <span>Bootstrap Loader</span>
-                            <span class="dash-nav-badge" id="bootstrap-count-badge">0</span>
-                        </button>
                     </nav>
                 </div>
                 <div class="dash-sidebar-bottom">
@@ -842,60 +835,6 @@
                     </div>
                 </div>
 
-                <!-- TAB: BOOTSTRAP LOADER -->
-                <div class="dash-tab" id="tab-bootstrap">
-                    <div class="dash-tab-header">
-                        <h1 class="dash-tab-title">Bootstrap Loader</h1>
-                        <p class="dash-tab-subtitle">Obfuscate raw Lua or a script URL into an encrypted byte table</p>
-                    </div>
-                    <div class="dash-form-card" style="margin-bottom:1.5rem;">
-                        <div class="dash-form-group">
-                            <label class="dash-label">Label <span class="dash-hint">only visible to you</span></label>
-                            <input type="text" id="bs-label" placeholder="e.g. Rivals Bootstrap v1" class="dash-input admin-input">
-                        </div>
-                        <div class="dash-form-group">
-                            <label class="dash-label">Mode</label>
-                            <div style="display:flex;gap:0.5rem;">
-                                <button id="bs-mode-lua" class="dash-primary-btn" style="flex:1;font-size:0.8rem;" onclick="window.bsSetMode('lua')"><i class="fa-solid fa-code"></i> Raw Lua</button>
-                                <button id="bs-mode-url" class="dash-primary-btn" style="flex:1;font-size:0.8rem;background:var(--surface2);box-shadow:none;border:1px solid var(--border);" onclick="window.bsSetMode('url')"><i class="fa-solid fa-link"></i> Script URL</button>
-                            </div>
-                        </div>
-                        <div id="bs-lua-group" class="dash-form-group">
-                            <label class="dash-label">Lua to obfuscate <span class="dash-hint">entire block gets XOR-encrypted</span></label>
-                            <textarea id="bs-lua" class="dash-textarea admin-textarea" style="min-height:110px;font-family:'Courier New',monospace;font-size:0.82rem;" placeholder="-- paste any Lua here"></textarea>
-                        </div>
-                        <div id="bs-url-group" class="dash-form-group" style="display:none;">
-                            <label class="dash-label">Script URL <span class="dash-hint">encrypted URL is HttpGet'd at runtime</span></label>
-                            <input type="url" id="bs-url" placeholder="https://raw.githubusercontent.com/…/script.lua" class="dash-input admin-input" style="font-family:monospace;font-size:0.82rem;">
-                        </div>
-                        <div style="padding:0.75rem 1rem;background:rgba(250,200,90,0.06);border:1px solid rgba(250,200,90,0.18);border-radius:10px;margin-bottom:1rem;display:flex;gap:0.65rem;align-items:flex-start;">
-                            <i class="fa-solid fa-triangle-exclamation" style="color:#f0c040;margin-top:0.1rem;flex-shrink:0;font-size:0.82rem;"></i>
-                            <p style="font-size:0.78rem;color:var(--muted);margin:0;">Content is XOR-encoded — <strong style="color:var(--fg);">never stored in plaintext</strong>. To key-gate it, copy the output Lua and paste it into <strong style="color:var(--fg);">Upload Key Script</strong>.</p>
-                        </div>
-                        <button id="bs-generate-btn" class="dash-primary-btn"><i class="fa-solid fa-shield-virus"></i> Generate Bootstrap Blob</button>
-                        <div id="bs-result" style="display:none;margin-top:1.25rem;">
-                            <div class="dash-success-banner" style="margin-bottom:1rem;"><i class="fa-solid fa-check-circle"></i> Blob generated!</div>
-                            <div class="dash-card" style="margin-top:0;">
-                                <div class="dash-card-header" style="padding-bottom:0.75rem;">
-                                    <h3 style="font-size:0.9rem;"><i class="fa-solid fa-code" style="color:var(--accent2);margin-right:0.4rem;"></i>Loadstring (give to users)</h3>
-                                </div>
-                                <div class="script-code-container" style="align-items:center;">
-                                    <code class="script-code" id="bs-loadstring-out" style="white-space:pre;font-size:0.78rem;word-break:break-all;"></code>
-                                    <button class="copy-btn" id="bs-copy-ls-btn">Copy</button>
-                                </div>
-                                <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;"><i class="fa-solid fa-fingerprint" style="color:var(--accent2);margin-right:0.3rem;"></i>ID: <code id="bs-result-id" style="color:var(--accent2);background:rgba(124,109,250,0.08);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.72rem;"></code></p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="dash-card">
-                        <div class="dash-card-header">
-                            <h3><i class="fa-solid fa-list" style="color:var(--accent2);margin-right:0.5rem;"></i>All Bootstrap Blobs</h3>
-                            <button class="dash-card-action" id="bs-refresh-btn"><i class="fa-solid fa-rotate-right"></i></button>
-                        </div>
-                        <div id="bs-list" class="dash-scripts-list"><p class="dash-empty">Loading…</p></div>
-                    </div>
-                </div>
-
             </main>
         </div>
 
@@ -960,7 +899,7 @@
             const tab = document.getElementById('tab-' + tabName);
             if (tab) tab.classList.add('active');
             document.querySelectorAll('[data-tab="' + tabName + '"]').forEach(n => n.classList.add('active'));
-            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host', 'edit-public':'Edit Public Script', 'edit-hosted':'Edit Hosted Script', 'key-scripts':'Key Scripts', 'keys':'Keys', 'add-key-script':'Upload Key Script', 'bootstrap':'Bootstrap Loader' };
+            const labels = { overview:'Overview', 'public-scripts':'Public Scripts', 'host-scripts':'Hosted Scripts', 'add-public':'Add Public Script', 'add-hosted':'Upload & Host', 'edit-public':'Edit Public Script', 'edit-hosted':'Edit Hosted Script', 'key-scripts':'Key Scripts', 'keys':'Keys', 'add-key-script':'Upload Key Script' };
             const bc = document.getElementById('dash-bc-current');
             if (bc) bc.textContent = labels[tabName] || tabName;
             if (tabName === 'overview')        refreshOverview();
@@ -968,7 +907,6 @@
             if (tabName === 'host-scripts')    renderHostedScripts();
             if (tabName === 'key-scripts')     renderKeyScripts();
             if (tabName === 'keys')            renderKeys();
-            if (tabName === 'bootstrap')       renderBootstraps();
         }
 
         // ── Animate count ─────────────────────────────────────────────────
@@ -1239,7 +1177,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true))()`;
+            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua"))()`;
         }
 
         function getLoaderFile(hash) {
@@ -1309,7 +1247,7 @@ fn()`;
                     '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);">' + escHtml(s.hash) + '</div>' +
                     '</div></div>' +
                     '<div class="dash-script-row-actions">' +
-                    '<button class="dash-icon-btn" title="Copy snippet" data-ks-copy="' + escHtml(s.hash) + '"><i class="fa-solid fa-copy"></i></button>' +
+                    '<button class="dash-icon-btn" title="Copy hash" data-ks-copy="' + escHtml(s.hash) + '"><i class="fa-solid fa-copy"></i></button>' +
                     '<button class="dash-icon-btn" title="Edit" data-ks-edit="' + escHtml(s.hash) + '" data-ks-label="' + escHtml(s.label||'') + '"><i class="fa-solid fa-pen"></i></button>' +
                     '<button class="dash-icon-btn" title="View loader snippet" data-ks-snippet="' + escHtml(s.hash) + '"><i class="fa-solid fa-code"></i></button>' +
                     '<button class="dash-icon-btn danger" title="Delete" data-ks-delete="' + escHtml(s.hash) + '"><i class="fa-solid fa-trash"></i></button>' +
@@ -1318,7 +1256,7 @@ fn()`;
 
             container.querySelectorAll('[data-ks-copy]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
-                    navigator.clipboard.writeText(getLoaderSnippet(btn.getAttribute('data-ks-copy'))).catch(()=>{});
+                    navigator.clipboard.writeText(btn.getAttribute('data-ks-copy')).catch(()=>{});
                     btn.style.color = 'var(--green)'; setTimeout(()=>{ btn.style.color=''; }, 1000);
                 });
             });
@@ -1753,110 +1691,6 @@ fn()`;
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', init);
         } else { setTimeout(init, 0); }
-
-
-        // ── Bootstrap Loader ──────────────────────────────────────────────
-        var _bsMode = 'lua';
-        window.bsSetMode = function(mode) {
-            _bsMode = mode;
-            document.getElementById('bs-lua-group').style.display = mode === 'lua' ? '' : 'none';
-            document.getElementById('bs-url-group').style.display = mode === 'url' ? '' : 'none';
-            document.getElementById('bs-mode-lua').style.background = mode === 'lua' ? 'var(--accent)' : 'var(--surface2)';
-            document.getElementById('bs-mode-url').style.background = mode === 'url' ? 'var(--accent)' : 'var(--surface2)';
-        };
-
-        async function apiBootstrap(payload) {
-            const r = await fetch('/api/bootstrap', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...payload, password: getPw() }),
-            });
-            return r.json();
-        }
-
-        var _bsCache = [];
-
-        async function renderBootstraps() {
-            var container = document.getElementById('bs-list');
-            if (!container) return;
-            container.innerHTML = '<p class="dash-empty">Loading\u2026</p>';
-            var data = await apiBootstrap({ action: 'list' }).catch(function() { return {}; });
-            _bsCache = (data.ok && Array.isArray(data.items)) ? data.items : [];
-            var badge = document.getElementById('bootstrap-count-badge');
-            if (badge) badge.textContent = _bsCache.length;
-            if (!_bsCache.length) { container.innerHTML = '<p class="dash-empty">No bootstrap blobs yet.</p>'; return; }
-            container.innerHTML = _bsCache.map(function(b, i) {
-                var modeCol = b.mode === 'url' ? 'var(--accent2)' : 'var(--green)';
-                return '<div class="dash-script-row">' +
-                    '<div class="dash-script-row-left">' +
-                    '<div class="dash-script-row-icon" style="background:rgba(250,150,60,0.1);border-color:rgba(250,150,60,0.2);color:#f0924a;"><i class="fa-solid fa-shield-virus"></i></div>' +
-                    '<div class="dash-script-row-info">' +
-                    '<div class="dash-script-row-name">' + escHtml(b.label || 'Bootstrap') +
-                    ' <span style="font-size:0.65rem;padding:0.1rem 0.35rem;border-radius:3px;background:rgba(124,109,250,0.1);color:' + modeCol + ';">' + escHtml(b.mode || 'lua') + '</span></div>' +
-                    '<div class="dash-script-row-meta" style="font-family:monospace;font-size:0.7rem;color:var(--muted);">' + escHtml(b.id.slice(0,20) + '\u2026') + '</div>' +
-                    '</div></div>' +
-                    '<div class="dash-script-row-actions">' +
-                    '<button class="dash-icon-btn" title="Copy loadstring" data-bs-copy="' + i + '"><i class="fa-solid fa-code"></i></button>' +
-                    '<button class="dash-icon-btn danger" title="Delete" data-bs-del="' + i + '"><i class="fa-solid fa-trash"></i></button>' +
-                    '</div></div>';
-            }).join('');
-            container.querySelectorAll('[data-bs-copy]').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    var b = _bsCache[parseInt(btn.getAttribute('data-bs-copy'))];
-                    if (!b) return;
-                    var ls = 'loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/bootstrap/' + b.id + '.lua", true))()';
-                    navigator.clipboard.writeText(ls).then(function() {
-                        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-                        setTimeout(function() { btn.innerHTML = '<i class="fa-solid fa-code"></i>'; }, 1500);
-                    });
-                });
-            });
-            container.querySelectorAll('[data-bs-del]').forEach(function(btn) {
-                btn.addEventListener('click', async function() {
-                    var b = _bsCache[parseInt(btn.getAttribute('data-bs-del'))];
-                    if (!b || !confirm('Delete "' + b.label + '"?')) return;
-                    var d = await apiBootstrap({ action: 'delete', id: b.id }).catch(function() { return {}; });
-                    if (d.ok) renderBootstraps();
-                    else alert('Delete failed: ' + (d.error || 'unknown'));
-                });
-            });
-        }
-
-        document.addEventListener('click', async function(e) {
-            if (e.target.closest('#bs-generate-btn')) {
-                var label = ((document.getElementById('bs-label') || {}).value || '').trim();
-                var payload = { action: 'generate', label: label };
-                if (_bsMode === 'lua') {
-                    var lua = ((document.getElementById('bs-lua') || {}).value || '').trim();
-                    if (!lua) { alert('Paste some Lua to obfuscate.'); return; }
-                    payload.lua = lua;
-                } else {
-                    var bsurl = ((document.getElementById('bs-url') || {}).value || '').trim();
-                    if (!bsurl) { alert('Enter a script URL.'); return; }
-                    payload.url = bsurl;
-                }
-                var btn = document.getElementById('bs-generate-btn');
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating\u2026';
-                var d = await apiBootstrap(payload).catch(function() { return {}; });
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-shield-virus"></i> Generate Bootstrap Blob';
-                if (!d.ok) { alert('Error: ' + (d.error || 'unknown')); return; }
-                document.getElementById('bs-loadstring-out').textContent = d.loadstring;
-                document.getElementById('bs-result-id').textContent      = d.id;
-                document.getElementById('bs-result').style.display       = 'block';
-                renderBootstraps();
-            }
-            if (e.target.closest('#bs-copy-ls-btn')) {
-                var code = ((document.getElementById('bs-loadstring-out') || {}).textContent || '');
-                navigator.clipboard.writeText(code).then(function() {
-                    var b2 = document.getElementById('bs-copy-ls-btn');
-                    b2.textContent = '\u2713 Copied';
-                    setTimeout(function() { b2.textContent = 'Copy'; }, 1500);
-                });
-            }
-            if (e.target.closest('#bs-refresh-btn')) renderBootstraps();
-        });
 
     })();
     </script>
