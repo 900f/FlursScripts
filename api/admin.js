@@ -99,7 +99,7 @@ export default async function handler(req, res) {
       existing.useCount = (existing.useCount || 0) + 1;
       existing.usageLog = existing.usageLog || [];
 
-      // Add the new entry (even if username is unknown for now)
+      // Add the new entry
       const newEntry = {
         ts:       Date.now(),
         username: finalUsername,
@@ -112,10 +112,10 @@ export default async function handler(req, res) {
       existing.usageLog.push(newEntry);
       existing.lastUsed = Date.now();
 
-      // ── STRICTLY remove ALL entries with username "unknown" (old + new)
+      // STRICTLY remove ALL entries with username "unknown" (old + new)
       existing.usageLog = existing.usageLog.filter(log => log.username !== 'unknown');
 
-      // If the array is now empty, that's intentional — only real usernames are kept
+      // The array may now be empty — that's expected until real usernames arrive
 
       await saveMeta(finalHash, existing);
 
