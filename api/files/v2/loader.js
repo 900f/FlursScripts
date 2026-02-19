@@ -1,4 +1,7 @@
 // api/files/v2/loader.js
+// Two modes:
+//   1. No ?u= param → serve a Lua bootstrapper that grabs username/hwid then refetches
+//   2. Has ?u= param → log + serve the real script content
 
 import { neon } from '@neondatabase/serverless';
 
@@ -57,22 +60,52 @@ export default async function handler(req, res) {
 
   const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-
   if (!hash) return res.status(400).end('-- Not found');
 
-  const ip = getIP(req);
-  const ua = req.headers['user-agent'] || 'unknown';
+  const ip    = getIP(req);
+  const ua    = req.headers['user-agent'] || 'unknown';
+  const host  = req.headers.host || 'api.flurs.xyz';
+  const urlObj = new URL(req.url, `https://${host}`);
 
-  // Parse username + hwid from query string (sent by the wrapper loadstring)
-  const urlObj  = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const robloxUsername = urlObj.searchParams.get('u')    || null;
   const hwid           = urlObj.searchParams.get('hwid') || null;
 
+  // ── PHASE 1: no user info yet — serve the Lua bootstrapper ────────────
+  if (!robloxUsername) {
+    const scriptUrl = `https://${host}/files/v2/loader/${hash}.lua`;
+    const hs = `game:GetService("HttpService")`;
+    const bootstrapper = `-- Flurs v2 Loader
+local hs   = ${hs}
+local url  = "${scriptUrl}"
+
+local ok1, hwid = pcall(function()
+    return game:GetService("RbxAnalyticsService"):GetClientId()
+end)
+if not ok1 or not hwid or hwid == "" then
+    local ok2, uid = pcall(function()
+        return tostring(game:GetService("Players").LocalPlayer.UserId) .. "_device"
+    end)
+    hwid = (ok2 and uid) or "unknown"
+end
+
+local ok3, uname = pcall(function()
+    return game:GetService("Players").LocalPlayer.Name
+end)
+local u = (ok3 and uname) or "unknown"
+
+local finalUrl = url .. "?u=" .. hs:UrlEncode(u) .. "&hwid=" .. hs:UrlEncode(hwid)
+local src = game:HttpGet(finalUrl, true)
+loadstring(src)()`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(200).end(bootstrapper);
+  }
+
+  // ── PHASE 2: has user info — log it and serve the real script ─────────
   try {
     const rows = await sql`SELECT content, label FROM scripts WHERE hash = ${hash}`;
     if (!rows.length) return res.status(404).end('-- Not found');
 
-    // Fire and forget log
     writeLog({ hash, label: rows[0].label, ip, ua, robloxUsername, hwid });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
