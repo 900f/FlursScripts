@@ -2,7 +2,6 @@
   "name": "flurs-script-hub",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@vercel/blob": "^0.23.0",
