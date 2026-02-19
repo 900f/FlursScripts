@@ -1797,16 +1797,12 @@ fn()`;
             list.innerHTML = '<p class="dash-empty">Loading…</p>';
             const pw = localStorage.getItem('flurs_admin_pw') || '';
 
-            const [keyData, pubData, hostData] = await Promise.all([
+            // Only fetch key scripts and hosted scripts — public page scripts don't go through the loader
+            const [keyData, hostData] = await Promise.all([
                 fetch('/api/keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'scriptanalytics', password: pw }),
-                }).then(r => r.json()).catch(() => ({})),
-                fetch('/api/uploadscript', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'publicanalytics', password: pw }),
                 }).then(r => r.json()).catch(() => ({})),
                 fetch('/api/admin', {
                     method: 'POST',
@@ -1816,18 +1812,11 @@ fn()`;
             ]);
 
             const keyScripts  = (keyData.ok  && keyData.scripts)  ? keyData.scripts  : [];
-            const pubScripts  = (pubData.ok  && pubData.scripts)  ? pubData.scripts  : [];
             const hostScripts = (hostData.ok && hostData.scripts) ? hostData.scripts : [];
 
-            // All non-key scripts merged — public and hosted show the same way
-            const regularScripts = [
-                ...pubScripts.map(s  => ({...s, _type: 'regular', label: s.name  || 'Unnamed', id: s.id})),
-                ...hostScripts.map(s => ({...s, _type: 'regular', label: s.label || 'Unnamed', id: s.hash})),
-            ].sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
-
             const allSorted = [
-                ...keyScripts.map(s => ({...s, _type: 'key', label: s.label || 'Unnamed', id: s.hash})),
-                ...regularScripts,
+                ...keyScripts.map(s  => ({...s, _type: 'key',    label: s.label || 'Unnamed', id: s.hash})),
+                ...hostScripts.map(s => ({...s, _type: 'hosted', label: s.label || 'Unnamed', id: s.hash})),
             ].sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
 
             const totalUses = allSorted.reduce((s, x) => s + (x.useCount || 0), 0);
@@ -1844,10 +1833,10 @@ fn()`;
                         </div>
                     </div>
                     <div class="dash-stat-card" style="--card-accent:#34d399;">
-                        <div class="dash-stat-icon"><i class="fa-solid fa-scroll"></i></div>
+                        <div class="dash-stat-icon"><i class="fa-solid fa-server"></i></div>
                         <div class="dash-stat-body">
-                            <div class="dash-stat-value">${regularScripts.length}</div>
-                            <div class="dash-stat-label">Scripts</div>
+                            <div class="dash-stat-value">${hostScripts.length}</div>
+                            <div class="dash-stat-label">Hosted Scripts</div>
                         </div>
                     </div>
                     <div class="dash-stat-card" style="--card-accent:#f59e0b;">
@@ -1878,15 +1867,12 @@ fn()`;
                 const isKey    = s._type === 'key';
                 const color    = isKey ? '#f59e0b' : 'var(--accent2)';
                 const rgb      = isKey ? '245,158,11' : '124,109,250';
-                const icon     = isKey ? 'fa-shield-halved' : 'fa-scroll';
+                const icon     = isKey ? 'fa-shield-halved' : 'fa-server';
                 const badge    = isKey
                     ? '<span style="font-size:0.65rem;background:rgba(245,158,11,0.12);color:#f59e0b;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem;">KEY</span>'
                     : '';
-                const recentUsers = (s.recentUsers || []).map(u =>
-                    `<span class="dash-tag" style="font-size:0.7rem;">${escHtml(u.username || 'unknown')}</span>`
-                ).join('');
                 return `<div class="dash-script-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;cursor:pointer;"
-                        data-hash="${escHtml(s.id||s.hash||'')}" data-label="${escHtml(s.label)}" data-type="${escHtml(s._type)}">
+                        data-hash="${escHtml(s.id)}" data-label="${escHtml(s.label)}" data-type="${escHtml(s._type)}">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                         <div style="display:flex;align-items:center;gap:0.75rem;">
                             <div class="dash-script-row-icon" style="background:rgba(${rgb},0.1);border-color:rgba(${rgb},0.2);color:${color};">
@@ -1905,7 +1891,6 @@ fn()`;
                     <div style="background:rgba(124,109,250,0.1);border-radius:999px;height:6px;overflow:hidden;">
                         <div style="width:${bar}%;height:100%;background:linear-gradient(90deg,var(--accent2),var(--green));border-radius:999px;transition:width 0.5s;"></div>
                     </div>
-                    ${recentUsers ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;"><span style="font-size:0.7rem;color:var(--muted);margin-right:0.25rem;">Recent users:</span>${recentUsers}</div>` : ''}
                 </div>`;
             }).join('');
 
@@ -1937,22 +1922,14 @@ fn()`;
                 }).then(r => r.json()).catch(() => ({}));
                 log = d.analytics?.usageLog || [];
             } else {
-                // Try public first, then hosted — whichever has a log
-                const [pubD, hostD] = await Promise.all([
-                    fetch('/api/uploadscript', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'getone', id: hash, password: pw }),
-                    }).then(r => r.json()).catch(() => ({})),
-                    fetch('/api/admin', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'list', password: pw }),
-                    }).then(r => r.json()).catch(() => ({})),
-                ]);
-                const pubLog  = pubD.script?.usageLog  || [];
-                const hostLog = ((hostD.scripts || []).find(s => s.hash === hash))?.usageLog || [];
-                log = pubLog.length ? pubLog : hostLog;
+                // hosted — pull usageLog from meta via admin list
+                const d = await fetch('/api/admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'list', password: pw }),
+                }).then(r => r.json()).catch(() => ({}));
+                const found = (d.scripts || []).find(s => s.hash === hash);
+                log = found?.usageLog || [];
             }
 
             if (!log.length) {
@@ -1966,7 +1943,7 @@ fn()`;
                     : null;
                 const gameChip = (e.gameName || e.gameId)
                     ? `<span style="color:var(--muted);font-size:0.72rem;">&#x1F3AE; ${escHtml(e.gameName || ('PlaceId ' + e.gameId))}</span>`
-                    : (type !== 'key' ? '<span style="color:var(--muted);font-size:0.72rem;">Game: unknown</span>' : '');
+                    : '';
                 const ipChip = e.ip
                     ? `<span style="font-size:0.72rem;color:var(--muted);">IP: ${escHtml(e.ip)}</span>`
                     : '';

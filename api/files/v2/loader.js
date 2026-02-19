@@ -1,5 +1,7 @@
 // api/files/v2/loader.js
-// Serves a raw Lua script. Executor-only. Extreme print protection built in.
+// Serves a raw Lua script. Executor-only. Tracks usage server-side.
+
+import { put, list } from '@vercel/blob';
 
 const BLOB_BASE_URL     = 'https://anynovmwoyinocra.public.blob.vercel-storage.com';
 const BLOB_TOKEN        = process.env.BLOB_READ_WRITE_TOKEN;
@@ -49,29 +51,45 @@ function isForbiddenRequest(req) {
   return false;
 }
 
-function wrapWithProtection(luaContent, hash) {
-  const trackUrl = `https://api.flurs.xyz/api/admin?action=trackhosted&hash=${hash}`;
+// ── Server-side tracking — no Lua ping needed ─────────────────────────────
+async function trackUse(hash, ip) {
+  try {
+    const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
+    const metaBlob  = blobs.find(b => b.pathname === `scripts/${hash}.meta.json`);
+    if (!metaBlob) return;
+    const meta = await fetch(metaBlob.url).then(r => r.json());
+    meta.useCount = (meta.useCount || 0) + 1;
+    meta.usageLog = [{
+      ts:       Date.now(),
+      ip:       ip || 'unknown',
+      username: 'unknown', // username not available server-side for v2
+    }];
+    meta.lastUsed = Date.now();
+    await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
+      access: 'public', contentType: 'application/json', addRandomSuffix: false,
+    });
+  } catch (e) {
+    console.error('trackUse error:', e);
+  }
+}
+
+function wrapWithProtection(luaContent) {
   return `-- Flurs Protected Loader v2
 do
-    -- === ANTI-PRINT / ANTI-DUMP SHIELD ===
     local _ENV = getfenv and getfenv(0) or _G
-    local _realprint   = rawget(_ENV, "print")  or function() end
-    local _realwarn    = rawget(_ENV, "warn")   or function() end
-    local _hs          = game:GetService("HttpService")
-    local _ps          = game:GetService("Players")
-    local _localPlayer = _ps.LocalPlayer
+    local _ps    = game:GetService("Players")
+    local _lp    = _ps.LocalPlayer
 
     local function _kick(reason)
         pcall(function()
-            _localPlayer:Kick("[Flurs] " .. (reason or "Anti-tamper triggered."))
+            _lp:Kick("[Flurs] " .. (reason or "Anti-tamper triggered."))
         end)
         while true do task.wait(9e9) end
     end
 
-    local _junkStr = string.rep(string.char(math.random(33,126)), math.random(8000, 12000))
-    rawset(_ENV, "print",   function(...) _kick("Unauthorised print detected.") end)
-    rawset(_ENV, "warn",    function(...) _kick("Unauthorised warn detected.")  end)
-    rawset(_ENV, "printidentity", function() _kick("printidentity blocked.") end)
+    rawset(_ENV, "print",         function(...) _kick("Unauthorised print detected.") end)
+    rawset(_ENV, "warn",          function(...) _kick("Unauthorised warn detected.")  end)
+    rawset(_ENV, "printidentity", function()    _kick("printidentity blocked.") end)
 
     pcall(function()
         if rawget(string, "dump") then
@@ -88,9 +106,7 @@ do
     local _origRequire = rawget(_ENV, "require")
     if _origRequire then
         rawset(_ENV, "require", function(m)
-            if type(m) == "string" and (
-                m:lower():find("dump") or m:lower():find("decompile")
-            ) then
+            if type(m) == "string" and (m:lower():find("dump") or m:lower():find("decompile")) then
                 _kick("Disallowed require.")
                 return nil
             end
@@ -100,46 +116,13 @@ do
 
     local _origTostring = rawget(_ENV, "tostring") or tostring
     rawset(_ENV, "tostring", function(v)
-        if type(v) == "function" then
-            return "[protected]"
-        end
+        if type(v) == "function" then return "[protected]" end
         return _origTostring(v)
     end)
 
-    -- === ANALYTICS PING ===
-    pcall(function()
-        local _lp = game:GetService("Players").LocalPlayer
-        local _username = _lp and _lp.Name or "unknown"
-        local _gameId   = tostring(game.PlaceId)
-        local _serverId = tostring(game.JobId)
-        local _ok, _gameName = pcall(function()
-            return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
-        end)
-        game:GetService("HttpService"):RequestAsync({
-            Url    = "https://api.flurs.xyz/api/admin",
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body   = game:GetService("HttpService"):JSONEncode({
-                action   = "trackhosted",
-                hash     = "${hash}",
-                username = _username,
-                gameId   = _gameId,
-                gameName = _ok and _gameName or nil,
-                serverId = _serverId,
-            }),
-        })
-    end)
-
     local _fn, _err = loadstring(${JSON.stringify(luaContent)})
-    if not _fn then
-        _kick("Script load failed.")
-        return
-    end
-
+    if not _fn then _kick("Script load failed.") return end
     local _ok, _runErr = pcall(_fn)
-    if not _ok then
-        -- Silent fail
-    end
 end
 `;
 }
@@ -149,14 +132,15 @@ export default async function handler(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
-  if (req.method !== 'GET')       return res.status(405).end('-- Method Not Allowed');
-  if (isForbiddenRequest(req))    return res.status(403).end('-- Forbidden');
-  if (isRateLimited(req))         return res.status(429).end('-- Slow down');
+  if (req.method !== 'GET')    return res.status(405).end('-- Method Not Allowed');
+  if (isForbiddenRequest(req)) return res.status(403).end('-- Forbidden');
+  if (isRateLimited(req))      return res.status(429).end('-- Slow down');
 
   const urlMatch = (req.url || '').match(/([a-f0-9]{32})\.lua/i);
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
-
   if (!hash) return res.status(400).end('-- Not found');
+
+  const ip = getIP(req);
 
   try {
     const url     = `${BLOB_BASE_URL}/scripts/${hash}.lua`;
@@ -167,10 +151,12 @@ export default async function handler(req, res) {
     if (!blobRes.ok) return res.status(404).end('-- Not found');
 
     const rawContent = await blobRes.text();
-    const protected_ = wrapWithProtection(rawContent, hash);
+
+    // Track server-side — fire and don't await so it doesn't slow the response
+    trackUse(hash, ip);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(protected_);
+    return res.status(200).end(wrapWithProtection(rawContent));
 
   } catch (err) {
     console.error('Loader v2 error:', err);
