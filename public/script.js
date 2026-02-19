@@ -689,7 +689,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function tryAutoUnlockUpload() {
         if (!uploadScriptPassword) return;
-        const res = await fetch('/api/uploadscript', {
+        const res = await fetch(`${API_BASE}/api/uploadscript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'auth', password: uploadScriptPassword }),
@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (uploadGateBtn) { uploadGateBtn.disabled = true; uploadGateBtn.textContent = '…'; }
 
         // Validate password against server
-        const res = await fetch('/api/uploadscript', {
+        const res = await fetch(`${API_BASE}/api/uploadscript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'auth', password: pw }),
@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-        const res = await fetch('/api/uploadscript', {
+        const res = await fetch(`${API_BASE}/api/uploadscript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
         list.querySelectorAll('.us-script-row').forEach(r => r.remove());
         if (noMsg) { noMsg.textContent = 'Loading…'; noMsg.style.display = 'block'; }
 
-        const res = await fetch('/api/uploadscript', {
+        const res = await fetch(`${API_BASE}/api/uploadscript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'list' }),
@@ -908,7 +908,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const id = btn.dataset.id;
                 btn.disabled = true; btn.innerHTML = '…';
 
-                const res = await fetch('/api/uploadscript', {
+                const res = await fetch(`${API_BASE}/api/uploadscript`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getone', id, password: uploadScriptPassword }),
@@ -926,7 +926,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!confirm('Delete this script? This cannot be undone.')) return;
                 btn.disabled = true; btn.innerHTML = '…';
 
-                const res = await fetch('/api/uploadscript', {
+                const res = await fetch(`${API_BASE}/api/uploadscript`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'delete', id: btn.dataset.id, password: uploadScriptPassword }),
@@ -1021,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 imageType = imageFile.type;
             }
 
-            const res = await fetch('/api/uploadscript', {
+            const res = await fetch(`${API_BASE}/api/uploadscript`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1055,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove previously injected dynamic cards
         grid.querySelectorAll('.dynamic-script-card').forEach(el => el.remove());
 
-        const res = await fetch('/api/uploadscript', {
+        const res = await fetch(`${API_BASE}/api/uploadscript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'list' }),
