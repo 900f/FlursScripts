@@ -846,27 +846,45 @@
                 <div class="dash-tab" id="tab-bootstrap">
                     <div class="dash-tab-header">
                         <h1 class="dash-tab-title">Bootstrap Loader</h1>
-                        <p class="dash-tab-subtitle">Paste a script URL — get an obfuscated blob that fetches &amp; runs it at runtime</p>
+                        <p class="dash-tab-subtitle">Obfuscate a script URL or raw Lua — the real content is hidden inside an encrypted byte table</p>
                     </div>
                     <div class="dash-form-card" style="margin-bottom:1.5rem;">
                         <div class="dash-form-group">
                             <label class="dash-label">Label <span class="dash-hint">only visible to you</span></label>
                             <input type="text" id="bs-label" placeholder="e.g. Rivals Bootstrap v1" class="dash-input admin-input">
                         </div>
+                        <!-- Mode toggle -->
                         <div class="dash-form-group">
-                            <label class="dash-label">Target Script URL <span class="dash-hint">the real URL that will be fetched &amp; executed</span></label>
-                            <input type="url" id="bs-url" placeholder="https://api.flurs.xyz/files/v3/loader/HASH.lua" class="dash-input admin-input" style="font-family:monospace;font-size:0.82rem;">
+                            <label class="dash-label">Mode</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button id="bs-mode-lua" class="dash-primary-btn" style="flex:1;font-size:0.8rem;" onclick="window.bsSetMode('lua')">
+                                    <i class="fa-solid fa-code"></i> Raw Lua
+                                </button>
+                                <button id="bs-mode-url" class="dash-primary-btn" style="flex:1;font-size:0.8rem;background:var(--surface2);box-shadow:none;border:1px solid var(--border);" onclick="window.bsSetMode('url')">
+                                    <i class="fa-solid fa-link"></i> Script URL
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Raw Lua input -->
+                        <div id="bs-lua-group" class="dash-form-group">
+                            <label class="dash-label">Lua to obfuscate <span class="dash-hint">this entire block gets encrypted</span></label>
+                            <textarea id="bs-lua" class="dash-textarea admin-textarea" style="min-height:120px;font-family:'Courier New',monospace;font-size:0.82rem;" placeholder='script_key="YOUR-KEY"&#10;loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/HASH.lua", true))()'></textarea>
+                        </div>
+                        <!-- URL input (hidden by default) -->
+                        <div id="bs-url-group" class="dash-form-group" style="display:none;">
+                            <label class="dash-label">Target Script URL <span class="dash-hint">fetched and executed at runtime</span></label>
+                            <input type="url" id="bs-url" placeholder="https://raw.githubusercontent.com/…/script.lua" class="dash-input admin-input" style="font-family:monospace;font-size:0.82rem;">
                         </div>
                         <div style="padding:0.75rem 1rem;background:rgba(250,200,90,0.06);border:1px solid rgba(250,200,90,0.18);border-radius:10px;margin-bottom:1rem;display:flex;gap:0.65rem;align-items:flex-start;">
                             <i class="fa-solid fa-triangle-exclamation" style="color:#f0c040;margin-top:0.1rem;flex-shrink:0;font-size:0.82rem;"></i>
-                            <p style="font-size:0.78rem;color:var(--muted);margin:0;">The URL is XOR-encoded and stored as an encrypted byte table — it is <strong style="color:var(--fg);">never stored in plaintext</strong>. Variable names are re-randomised on every serve request for extra obfuscation.</p>
+                            <p style="font-size:0.78rem;color:var(--muted);margin:0;">Content is XOR-encoded into a Lua byte table — <strong style="color:var(--fg);">never stored in plaintext</strong>. Variable names are re-randomised on every serve request.</p>
                         </div>
                         <button id="bs-generate-btn" class="dash-primary-btn">
                             <i class="fa-solid fa-shield-virus"></i> Generate Bootstrap Blob
                         </button>
                         <div id="bs-result" style="display:none;margin-top:1.25rem;">
                             <div class="dash-success-banner" style="margin-bottom:1rem;">
-                                <i class="fa-solid fa-check-circle"></i> Bootstrap created! Use the loadstring below.
+                                <i class="fa-solid fa-check-circle"></i> Bootstrap created! Give users the loadstring below.
                             </div>
                             <div class="dash-card" style="margin-top:0;">
                                 <div class="dash-card-header" style="padding-bottom:0.75rem;">
@@ -1234,7 +1252,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true))()`;
+            return `-- 1. Set your key\nscript_key="YOUR-KEY"\n\n-- 2. Run the script\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true))()`;
         }
 
         function getLoaderFile(hash) {
@@ -1806,6 +1824,20 @@ fn()`;
         });
 
         // ── Bootstrap Loader ──────────────────────────────────────────────
+        var _bsMode = 'lua'; // 'lua' or 'url'
+
+        window.bsSetMode = function(mode) {
+            _bsMode = mode;
+            document.getElementById('bs-lua-group').style.display = mode === 'lua' ? '' : 'none';
+            document.getElementById('bs-url-group').style.display = mode === 'url' ? '' : 'none';
+            var luaBtn = document.getElementById('bs-mode-lua');
+            var urlBtn = document.getElementById('bs-mode-url');
+            var active = 'background:var(--accent);box-shadow:0 0 12px rgba(124,109,250,0.4);border:none;';
+            var inactive = 'background:var(--surface2);box-shadow:none;border:1px solid var(--border);';
+            luaBtn.style.cssText += mode === 'lua' ? active : inactive;
+            urlBtn.style.cssText += mode === 'url' ? active : inactive;
+        };
+
         async function apiBootstrap(payload) {
             const r = await fetch('/api/bootstrap', {
                 method: 'POST',
@@ -1827,7 +1859,6 @@ fn()`;
             if (badge) badge.textContent = _bsCache.length;
             if (!_bsCache.length) { container.innerHTML = '<p class="dash-empty">No bootstrap blobs yet.</p>'; return; }
             container.innerHTML = _bsCache.map(function(b, i) {
-                var ls = 'loadstring(game:HttpGet("https://api.flurs.xyz/files/v3/bootstrap/' + b.id + '.lua", true))()';
                 return '<div class="dash-script-row">' +
                     '<div class="dash-script-row-left">' +
                     '<div class="dash-script-row-icon" style="background:rgba(250,150,60,0.1);border-color:rgba(250,150,60,0.2);color:#f0924a;"><i class="fa-solid fa-shield-virus"></i></div>' +
@@ -1856,7 +1887,7 @@ fn()`;
             container.querySelectorAll('[data-bs-del]').forEach(function(btn) {
                 btn.addEventListener('click', async function() {
                     var b = _bsCache[parseInt(btn.getAttribute('data-bs-del'))];
-                    if (!b || !confirm('Delete bootstrap blob "' + b.label + '"?')) return;
+                    if (!b || !confirm('Delete "' + b.label + '"?')) return;
                     var d = await apiBootstrap({ action: 'delete', id: b.id }).catch(() => ({}));
                     if (d.ok) renderBootstraps();
                     else alert('Delete failed: ' + (d.error || 'unknown'));
@@ -1866,13 +1897,23 @@ fn()`;
 
         document.addEventListener('click', async function(e) {
             if (e.target.closest('#bs-generate-btn')) {
-                var url   = (document.getElementById('bs-url')   || {}).value?.trim();
                 var label = (document.getElementById('bs-label') || {}).value?.trim();
-                if (!url) { alert('Please enter a target script URL.'); return; }
+                var payload = { action: 'generate', label };
+
+                if (_bsMode === 'lua') {
+                    var lua = (document.getElementById('bs-lua') || {}).value?.trim();
+                    if (!lua) { alert('Please paste some Lua to obfuscate.'); return; }
+                    payload.lua = lua;
+                } else {
+                    var url = (document.getElementById('bs-url') || {}).value?.trim();
+                    if (!url) { alert('Please enter a target script URL.'); return; }
+                    payload.url = url;
+                }
+
                 var btn = document.getElementById('bs-generate-btn');
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
-                var d = await apiBootstrap({ action: 'generate', url, label }).catch(() => ({}));
+                var d = await apiBootstrap(payload).catch(() => ({}));
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-shield-virus"></i> Generate Bootstrap Blob';
                 if (!d.ok) { alert('Error: ' + (d.error || 'unknown')); return; }
