@@ -1,10 +1,8 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/files/v2/loader/:hash.lua",     "destination": "/api/files/v2/loader" },
-    { "source": "/api/files/v2/loader/:hash.lua", "destination": "/api/files/v2/loader" },
-    { "source": "/files/v3/loader/:hash*.lua",    "destination": "/api/files/v3/loader" },
-    { "source": "/api/files/v3/loader/:hash*.lua","destination": "/api/files/v3/loader" }
+    { "source": "/api/execute/:hash.lua", "destination": "/api/execute" },
+    { "source": "/((?!api/).*)",          "destination": "/public/$1" }
   ],
   "headers": [
     {
