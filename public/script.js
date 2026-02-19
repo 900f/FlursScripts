@@ -373,10 +373,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedPassword = localStorage.getItem('flurs_admin_pw');
     if (savedPassword) sessionPassword = savedPassword;
 
-    function generateHash() {
+    function generateHash(len) {
         const chars = '0123456789abcdef';
         let result = '';
-        for (let i = 0; i < 32; i++) {
+        for (let i = 0; i < (len || 32); i++) {
             result += chars[Math.floor(Math.random() * chars.length)];
         }
         return result;
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const res = await fetch(`${API_BASE}/api/admin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, password: sessionPassword }),
+            body: JSON.stringify({ ...payload, password: sessionPassword || localStorage.getItem('flurs_admin_pw') || '' }),
         });
         return res.json();
     }
@@ -414,8 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const gate  = document.getElementById('admin-gate');
         const panel = document.getElementById('admin-panel');
         if (gate)  gate.style.display  = 'none';
-        if (panel) panel.style.display = 'block';
-        renderHostedScriptsList();
+        if (panel) { panel.style.display = 'flex'; panel.style.flexDirection = 'row'; }
     }
 
     // ── Edit Modal ───────────────────────────────────────────────────────────
@@ -602,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('flurs_admin_pw', pw);
 
         if (adminGate) adminGate.style.display = 'none';
-        if (adminPanel) adminPanel.style.display = 'block';
+        if (adminPanel) { adminPanel.style.display = 'flex'; adminPanel.style.flexDirection = 'row'; }
         if (adminLoginError) adminLoginError.style.display = 'none';
         if (adminLoginBtn) { adminLoginBtn.disabled = false; adminLoginBtn.textContent = 'Unlock'; }
         renderHostedScriptsList();
@@ -664,7 +663,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (document.getElementById('upload-label')) document.getElementById('upload-label').value = '';
             if (document.getElementById('upload-content')) document.getElementById('upload-content').value = '';
-            renderHostedScriptsList();
+            if (window.dashRefreshHosted) window.dashRefreshHosted();
             showNotification('Script hosted!', 'success');
         });
     }
@@ -857,8 +856,8 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification('Script published!', 'success');
 
         // Reload dynamic scripts so it appears immediately if user goes to scripts page
+        if (window.dashRefreshPublic) window.dashRefreshPublic();
         loadDynamicScripts();
-        renderUploadedScriptsList();
     });
 
     // ─── MANAGE SCRIPTS LIST (on #uploadscript page) ─────────────────────────

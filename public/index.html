@@ -1088,14 +1088,14 @@
 
             const allPublic = [
                 ...HARDCODED_SCRIPTS.map(s => ({ ...s, hardcoded: true })),
-                ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: Array.isArray(s.tags) ? s.tags : [], hardcoded: false, id: s.id, imageUrl: s.imageUrl }))
+                ...dynScripts.map(s => ({ name: s.name || 'Unnamed', tags: Array.isArray(s.tags) ? s.tags : [], hardcoded: false, id: s.id, image_data: s.image_data }))
             ];
 
             if (!allPublic.length) { container.innerHTML = '<p class="dash-empty">No scripts yet.</p>'; return; }
 
             container.innerHTML = allPublic.map(function(s) {
-                var thumb = s.imageUrl
-                    ? '<img src="' + escHtml(s.imageUrl) + '" class="dash-pub-thumb">'
+                var thumb = s.image_data
+                    ? '<img src="' + escHtml(s.image_data) + '" class="dash-pub-thumb">'
                     : '<div class="dash-script-row-icon"><i class="fa-solid fa-scroll"></i></div>';
                 var tagHtml = s.tags.slice(0, 3).map(function(t) {
                     return '<span class="tag" style="font-size:0.68rem;padding:0.12rem 0.5rem;">' + escHtml(t) + '</span>';
@@ -1149,7 +1149,7 @@
             // Show current image
             const curWrap = document.getElementById('edit-pub-current-img-wrap');
             const curImg  = document.getElementById('edit-pub-current-img');
-            if (s.imageUrl) { curImg.src = s.imageUrl; curWrap.style.display = 'block'; }
+            if (s.image_data) { curImg.src = s.image_data; curWrap.style.display = 'block'; }
             else { curWrap.style.display = 'none'; }
 
             // Reset new image picker
@@ -1286,7 +1286,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return 'script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/' + hash + '.lua", true))()';
+            return `script_key="YOUR-KEY"\nloadstring(game:HttpGet("https://www.flurs.xyz/files/v3/loader/${hash}.lua"))()`;
         }
 
         function getLoaderFile(hash) {
@@ -1729,6 +1729,10 @@ fn()`;
                 });
             }
         }
+
+        // Expose refresh functions globally so script.js upload btn can call them
+        window.dashRefreshHosted = function() { renderHostedScripts(); refreshOverview(); };
+        window.dashRefreshPublic = function() { renderPublicScripts(); refreshOverview(); };
 
         // ── Called once script.js unlocks the panel ───────────────────────
         function onDashboardUnlocked() {

@@ -220,7 +220,21 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'list') {
-      const keys = await getAllKeys();
+      const rows = await getAllKeys();
+      const keys = rows.map(k => ({
+        id:          k.id,
+        key:         k.id,
+        note:        k.note,
+        expiresAt:   k.expires_at,
+        blacklisted: k.blacklisted,
+        revoked:     k.blacklisted,
+        scriptHash:  k.script_hash,
+        maxUses:     k.max_uses,
+        hwid:        k.hwid,
+        useCount:    k.use_count || 0,
+        lastUsed:    k.last_used || null,
+        createdAt:   k.created_at,
+      }));
       return res.status(200).json({ ok: true, keys });
     }
 
