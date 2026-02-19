@@ -1,6 +1,7 @@
 // api/keys.js
 // Full key-based loader system with GET + POST support for validation
 // Admin actions require POST + password
+// v2: Tracks Roblox username, adds analytics + security log endpoints
 
 import { put, list, del } from '@vercel/blob';
 import crypto from 'crypto';
@@ -30,6 +31,15 @@ function recordFailure(ip) {
 
 function clearFailures(ip) { 
     attempts.delete(ip); 
+}
+
+// ── Security event log (in-memory ring buffer, last 200 events) ──────────
+const securityLog = [];
+const SEC_LOG_MAX = 200;
+
+function logSecurityEvent(type, details) {
+    securityLog.unshift({ ts: Date.now(), type, ...details });
+    if (securityLog.length > SEC_LOG_MAX) securityLog.pop();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -73,6 +83,12 @@ async function getScriptMeta(hash) {
     return fetch(b.url).then(r => r.json());
 }
 
+async function saveScriptMeta(hash, meta) {
+    await put(`keyscripts/${hash}.meta.json`, JSON.stringify(meta), {
+        access: 'public', contentType: 'application/json', addRandomSuffix: false,
+    });
+}
+
 async function getAllScripts() {
     const { blobs } = await list({ prefix: 'keyscripts/' });
     const metaBlobs = blobs.filter(b => b.pathname.endsWith('.meta.json'));
@@ -80,6 +96,23 @@ async function getAllScripts() {
         try { return await fetch(b.url).then(r => r.json()); } catch { return null; }
     }));
     return scripts.filter(Boolean).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+// ── Analytics: increment script use count ────────────────────────────────
+async function trackScriptUse(hash, username, ip) {
+    try {
+        const meta = await getScriptMeta(hash);
+        if (!meta) return;
+        meta.useCount = (meta.useCount || 0) + 1;
+        meta.usageLog = meta.usageLog || [];
+        meta.usageLog.unshift({ ts: Date.now(), username: username || 'unknown', ip });
+        if (meta.usageLog.length > 100) meta.usageLog = meta.usageLog.slice(0, 100);
+        meta.lastUsed = Date.now();
+        await saveScriptMeta(hash, meta);
+    } catch (e) {
+        // Non-critical — don't fail the request
+        console.error('trackScriptUse error:', e);
+    }
 }
 
 export default async function handler(req, res) {
@@ -96,7 +129,10 @@ export default async function handler(req, res) {
 
     // ── Rate limiting ────────────────────────────────────────────────────
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-    if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests.' });
+    if (isRateLimited(ip)) {
+        logSecurityEvent('rate_limited', { ip });
+        return res.status(429).json({ error: 'Too many requests.' });
+    }
 
     // ── Parse params (GET query or POST body) ────────────────────────────
     let params = {};
@@ -123,21 +159,25 @@ export default async function handler(req, res) {
 
     if (!password || password !== ADMIN_PASSWORD) {
         recordFailure(ip);
+        logSecurityEvent('bad_admin_password', { ip });
         return res.status(401).json({ error: 'Unauthorized' });
     }
     clearFailures(ip);
 
     try {
-        if (action === 'create')        return handleCreate(res, params);
-        if (action === 'list')          return handleList(res);
-        if (action === 'revoke')        return handleRevoke(res, params);
-        if (action === 'unrevoke')      return handleUnrevoke(res, params);
-        if (action === 'delete')        return handleDelete(res, params);
-        if (action === 'update')        return handleUpdate(res, params);
-        if (action === 'listscripts')   return handleListScripts(res);
-        if (action === 'savescript')    return handleSaveScript(res, params);
-        if (action === 'deletescript')  return handleDeleteScript(res, params);
-        if (action === 'getscript')     return handleGetScript(res, params);
+        if (action === 'create')           return handleCreate(res, params);
+        if (action === 'list')             return handleList(res);
+        if (action === 'revoke')           return handleRevoke(res, params);
+        if (action === 'unrevoke')         return handleUnrevoke(res, params);
+        if (action === 'delete')           return handleDelete(res, params);
+        if (action === 'update')           return handleUpdate(res, params);
+        if (action === 'listscripts')      return handleListScripts(res);
+        if (action === 'savescript')       return handleSaveScript(res, params);
+        if (action === 'deletescript')     return handleDeleteScript(res, params);
+        if (action === 'getscript')        return handleGetScript(res, params);
+        if (action === 'scriptanalytics')  return handleScriptAnalytics(res, params);
+        if (action === 'securitylog')      return handleSecurityLog(res);
+        if (action === 'keyusers')         return handleKeyUsers(res, params);
         return res.status(400).json({ error: 'Unknown action' });
     } catch (err) {
         console.error('keys.js error:', err);
@@ -147,7 +187,7 @@ export default async function handler(req, res) {
 
 // ── VALIDATE ──────────────────────────────────────────────────────────────
 async function handleValidate(req, res, params, ip) {
-    const { key, hwid, scriptHash } = params;
+    const { key, hwid, scriptHash, username } = params;
 
     if (!key)        return res.status(400).json({ ok: false, error: 'No key provided' });
     if (!scriptHash) return res.status(400).json({ ok: false, error: 'No scriptHash provided' });
@@ -155,19 +195,26 @@ async function handleValidate(req, res, params, ip) {
     const allKeys = await getAllKeys();
     const keyData = allKeys.find(k => k.key === key);
 
-    if (!keyData)              return res.status(403).json({ ok: false, error: 'Invalid key' });
-    if (keyData.revoked)       return res.status(403).json({ ok: false, error: 'Key has been revoked' });
-    if (keyData.blacklisted)   return res.status(403).json({ ok: false, error: 'Key is blacklisted' });
-
+    if (!keyData) {
+        logSecurityEvent('invalid_key', { ip, key: key.slice(0, 8) + '…', scriptHash, username });
+        return res.status(403).json({ ok: false, error: 'Invalid key' });
+    }
+    if (keyData.revoked) {
+        logSecurityEvent('revoked_key_used', { ip, keyId: keyData.id, username });
+        return res.status(403).json({ ok: false, error: 'Key has been revoked' });
+    }
+    if (keyData.blacklisted) {
+        logSecurityEvent('blacklisted_key_used', { ip, keyId: keyData.id, username });
+        return res.status(403).json({ ok: false, error: 'Key is blacklisted' });
+    }
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
         return res.status(403).json({ ok: false, error: 'Key has expired' });
     }
-
     if (keyData.maxUses && (keyData.useCount || 0) >= keyData.maxUses) {
         return res.status(403).json({ ok: false, error: 'Key has reached its maximum uses' });
     }
-
     if (keyData.scriptHash && keyData.scriptHash !== scriptHash) {
+        logSecurityEvent('wrong_script_key', { ip, keyId: keyData.id, scriptHash, username });
         return res.status(403).json({ ok: false, error: 'Key is not valid for this script' });
     }
 
@@ -175,19 +222,37 @@ async function handleValidate(req, res, params, ip) {
         if (!keyData.hwid) {
             keyData.hwid = hwid;
         } else if (keyData.hwid !== hwid) {
+            logSecurityEvent('hwid_mismatch', { ip, keyId: keyData.id, username, expectedHwid: keyData.hwid.slice(0,8)+'…' });
             return res.status(403).json({ ok: false, error: 'HWID mismatch — wrong device' });
         }
     }
 
-    // Log usage
+    // Log usage with Roblox username
     const now = Date.now();
     keyData.lastUsed  = now;
     keyData.useCount  = (keyData.useCount || 0) + 1;
     keyData.usageLog  = keyData.usageLog || [];
-    keyData.usageLog.push({ ts: now, ip, hwid: hwid || null });
-    if (keyData.usageLog.length > 50) keyData.usageLog = keyData.usageLog.slice(-50);
+    keyData.usageLog.unshift({ 
+        ts: now, 
+        ip, 
+        hwid: hwid || null,
+        username: username || 'unknown',
+    });
+    if (keyData.usageLog.length > 50) keyData.usageLog = keyData.usageLog.slice(0, 50);
+
+    // Track last known username
+    if (username && username !== 'unknown') {
+        keyData.lastUsername = username;
+        if (!keyData.knownUsernames) keyData.knownUsernames = [];
+        if (!keyData.knownUsernames.includes(username)) {
+            keyData.knownUsernames.push(username);
+        }
+    }
 
     await saveKey(keyData.id, keyData);
+
+    // Track per-script analytics
+    await trackScriptUse(scriptHash, username || 'unknown', ip);
 
     // Fetch script content
     const { blobs } = await list({ prefix: `keyscripts/${scriptHash}.lua` });
@@ -206,17 +271,19 @@ async function handleCreate(res, params) {
     const data = {
         id,
         key,
-        note:       note || '',
-        scriptHash: scriptHash || null,
-        hwid:       null,
-        revoked:    false,
-        blacklisted: false,
-        expiresAt:  expiresAt ? Number(expiresAt) : null,
-        maxUses:    maxUses ? Number(maxUses) : null,
-        useCount:   0,
-        usageLog:   [],
-        createdAt:  Date.now(),
-        lastUsed:   null,
+        note:            note || '',
+        scriptHash:      scriptHash || null,
+        hwid:            null,
+        revoked:         false,
+        blacklisted:     false,
+        expiresAt:       expiresAt ? Number(expiresAt) : null,
+        maxUses:         maxUses ? Number(maxUses) : null,
+        useCount:        0,
+        usageLog:        [],
+        lastUsername:    null,
+        knownUsernames:  [],
+        createdAt:       Date.now(),
+        lastUsed:        null,
     };
     await saveKey(id, data);
     return res.status(200).json({ ok: true, key: data.key, id });
@@ -265,8 +332,8 @@ async function handleUpdate(res, params) {
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const data = await getKey(id);
     if (!data) return res.status(404).json({ error: 'Key not found' });
-    if (note        !== undefined) data.note       = note;
-    if (expiresAt   !== undefined) data.expiresAt  = expiresAt ? Number(expiresAt) : null;
+    if (note        !== undefined) data.note        = note;
+    if (expiresAt   !== undefined) data.expiresAt   = expiresAt ? Number(expiresAt) : null;
     if (blacklisted !== undefined) data.blacklisted = blacklisted;
     if (scriptHash  !== undefined) data.scriptHash  = scriptHash || null;
     if (maxUses     !== undefined) data.maxUses     = maxUses ? Number(maxUses) : null;
@@ -296,10 +363,11 @@ async function handleSaveScript(res, params) {
         hash: scriptHash,
         label: label || existing?.label || 'Unnamed',
         createdAt: existing?.createdAt || Date.now(),
+        useCount:  existing?.useCount  || 0,
+        usageLog:  existing?.usageLog  || [],
+        lastUsed:  existing?.lastUsed  || null,
     };
-    await put(`keyscripts/${scriptHash}.meta.json`, JSON.stringify(meta), {
-        access: 'public', contentType: 'application/json', addRandomSuffix: false,
-    });
+    await saveScriptMeta(scriptHash, meta);
 
     return res.status(200).json({ ok: true, hash: scriptHash });
 }
@@ -325,4 +393,53 @@ async function handleGetScript(res, params) {
         getScriptMeta(hash),
     ]);
     return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
+}
+
+// ── SCRIPT ANALYTICS ─────────────────────────────────────────────────────
+async function handleScriptAnalytics(res, params) {
+    const { hash } = params;
+    if (hash) {
+        // Single script analytics
+        const meta = await getScriptMeta(hash);
+        if (!meta) return res.status(404).json({ error: 'Script not found' });
+        return res.status(200).json({ ok: true, analytics: meta });
+    } else {
+        // All scripts summary
+        const scripts = await getAllScripts();
+        const summary = scripts.map(s => ({
+            hash:     s.hash,
+            label:    s.label,
+            useCount: s.useCount  || 0,
+            lastUsed: s.lastUsed  || null,
+            // Top 5 most recent users
+            recentUsers: (s.usageLog || []).slice(0, 5).map(l => ({
+                username: l.username,
+                ts:       l.ts,
+                ip:       l.ip,
+            })),
+        }));
+        // Sort by use count descending
+        summary.sort((a, b) => b.useCount - a.useCount);
+        return res.status(200).json({ ok: true, scripts: summary });
+    }
+}
+
+// ── SECURITY LOG ──────────────────────────────────────────────────────────
+async function handleSecurityLog(res) {
+    return res.status(200).json({ ok: true, events: securityLog });
+}
+
+// ── KEY USERS (who used a specific key) ──────────────────────────────────
+async function handleKeyUsers(res, params) {
+    const { id } = params;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const data = await getKey(id);
+    if (!data) return res.status(404).json({ error: 'Key not found' });
+    return res.status(200).json({ 
+        ok: true, 
+        usageLog:        data.usageLog        || [],
+        knownUsernames:  data.knownUsernames   || [],
+        lastUsername:    data.lastUsername     || null,
+        useCount:        data.useCount         || 0,
+    });
 }
