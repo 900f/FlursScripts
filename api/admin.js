@@ -94,7 +94,6 @@ clearFailures(ip);
 
 try {
 
-```
 // ── SAVE ──────────────────────────────────────────────────────────────
 if (action === 'save') {
   if (!hash || !content) return res.status(400).json({ error: 'Missing hash or content' });
@@ -191,7 +190,6 @@ if (action === 'list') {
 }
 
 return res.status(400).json({ error: 'Unknown action' });
-```
 
 } catch (err) {
 console.error(‘Admin error:’, err);
