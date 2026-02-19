@@ -1,5 +1,5 @@
 // api/files/v2/loader.js
-// Serves a raw Lua script. Executor-only. Tracks usage server-side + client ping for full logging.
+// Serves a raw Lua script. Executor-only. Tracks usage server-side.
 
 import { put, list } from '@vercel/blob';
 
@@ -51,7 +51,7 @@ function isForbiddenRequest(req) {
   return false;
 }
 
-// ── Server-side basic tracking (IP + count) ────────────────────────────────
+// ── Server-side tracking — no Lua ping needed ─────────────────────────────
 async function trackUse(hash, ip) {
   try {
     const { blobs } = await list({ prefix: `scripts/${hash}.meta.json` });
@@ -59,12 +59,11 @@ async function trackUse(hash, ip) {
     if (!metaBlob) return;
     const meta = await fetch(metaBlob.url + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
     meta.useCount = (meta.useCount || 0) + 1;
-    meta.usageLog = meta.usageLog || [];
-    meta.usageLog.push({
+    meta.usageLog = [{
       ts:       Date.now(),
       ip:       ip || 'unknown',
-      username: 'unknown', // client will send better data
-    });
+      username: 'unknown', // username not available server-side for v2
+    }];
     meta.lastUsed = Date.now();
     await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
       access: 'public', contentType: 'application/json', addRandomSuffix: false,
@@ -74,8 +73,8 @@ async function trackUse(hash, ip) {
   }
 }
 
-function wrapWithProtection(luaContent, hash) {  // hash is now passed in
-  return `-- Flurs Protected Loader v2 (with working usage logging)
+function wrapWithProtection(luaContent) {
+  return `-- Flurs Protected Loader v2
 do
     local _ENV = getfenv and getfenv(0) or _G
     local _ps    = game:GetService("Players")
@@ -124,49 +123,6 @@ do
     local _fn, _err = loadstring(${JSON.stringify(luaContent)})
     if not _fn then _kick("Script load failed.") return end
     local _ok, _runErr = pcall(_fn)
-
-    -- ── Silent usage logging ping ───────────────────────────────────────────
-    task.spawn(function()
-        pcall(function()
-            local hs = game:GetService("HttpService")
-            local username = _lp and _lp.Name or "unknown"
-            local gameId   = game.PlaceId
-            local serverId = game.JobId
-            local gameName = "unknown"
-
-            -- Try to get real game name (fallback to "unknown")
-            pcall(function()
-                local resp = hs:GetAsync("https://games.roblox.com/v1/games?universeIds=" .. game.GameId)
-                local info = hs:JSONDecode(resp)
-                gameName = info.data[1].name or "unknown"
-            end)
-
-            local data = {
-                hash     = "${hash}",
-                username = username,
-                gameId   = gameId,
-                gameName = gameName,
-                serverId = serverId
-            }
-
-            local baseUrl = "https://api.flurs.xyz/api/admin?action=trackhosted"  -- ← change if your domain is different
-
-            -- Try executor-friendly request methods first, fallback to HttpService GET
-            local req = request or (syn and syn.request) or http_request or (http and http.request)
-            if req then
-                req({
-                    Url     = baseUrl,
-                    Method  = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body    = hs:JSONEncode(data)
-                })
-            else
-                local query = hs:UrlEncode(hs:JSONEncode(data))
-                hs:GetAsync(baseUrl .. "&" .. query)
-            end
-        end)
-    end)
-
 end
 `;
 }
@@ -196,11 +152,11 @@ export default async function handler(req, res) {
 
     const rawContent = await blobRes.text();
 
-    // Server-side IP tracking (still runs)
+    // Track server-side — fire and don't await so it doesn't slow the response
     trackUse(hash, ip);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(wrapWithProtection(rawContent, hash));
+    return res.status(200).end(wrapWithProtection(rawContent));
 
   } catch (err) {
     console.error('Loader v2 error:', err);

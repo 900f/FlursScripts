@@ -72,53 +72,26 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   }
 
-  const body = req.body || {};
-  const { action, password, hash, label, content } = body;
+  const { action, password, hash, label, content } = req.body || {};
 
-  // ── trackhosted is public (called from Roblox client ping) ─────────────
+  // ── trackhosted is public (called from Roblox, no admin password) ─────
   if (action === 'trackhosted') {
     try {
-      // Support POST body + GET query params fallback
-      const query = req.query || {};
-
-      const finalHash     = body.hash     || query.hash     || null;
-      const finalUsername = body.username || query.username || 'unknown';
-      const finalGameId   = body.gameId   || query.gameId   || null;
-      const finalGameName = body.gameName || query.gameName || null;
-      const finalServerId = body.serverId || query.serverId || null;
-
-      if (!finalHash) {
-        return res.status(400).json({ error: 'Missing hash' });
-      }
-
-      const existing = await getMeta(finalHash);
-      if (!existing) {
-        return res.status(404).json({ error: 'Script not found' });
-      }
-
+      const { hash: h, username, gameId, gameName, serverId } = req.body || {};
+      if (!h) return res.status(400).json({ error: 'Missing hash' });
+      const existing = await getMeta(h);
+      if (!existing) return res.status(404).json({ error: 'Script not found' });
       existing.useCount = (existing.useCount || 0) + 1;
-      existing.usageLog = existing.usageLog || [];
-
-      // Add the new entry
-      const newEntry = {
+      existing.usageLog = [{
         ts:       Date.now(),
-        username: finalUsername,
+        username: username || 'unknown',
         ip:       ip,
-        gameId:   finalGameId,
-        gameName: finalGameName,
-        serverId: finalServerId,
-      };
-
-      existing.usageLog.push(newEntry);
+        gameId:   gameId   || null,
+        gameName: gameName || null,
+        serverId: serverId || null,
+      }];
       existing.lastUsed = Date.now();
-
-      // STRICTLY remove ALL entries with username "unknown" (old + new)
-      existing.usageLog = existing.usageLog.filter(log => log.username !== 'unknown');
-
-      // The array may now be empty — that's expected until real usernames arrive
-
-      await saveMeta(finalHash, existing);
-
+      await saveMeta(h, existing);
       return res.status(200).json({ ok: true });
     } catch (e) {
       console.error('trackhosted error:', e);
@@ -126,17 +99,18 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── All other actions require password ─────────────────────────────────
+  // ── Password check ─────────────────────────────────────────────────────
   if (!password || password !== ADMIN_PASSWORD) {
     recordFailure(ip);
     return unauthorized(res);
   }
 
-  // Correct password — clear failures
+  // Correct password — clear their failure count
   clearFailures(ip);
 
   try {
-    // SAVE
+
+    // ── SAVE ──────────────────────────────────────────────────────────────
     if (action === 'save') {
       if (!hash || !content) return res.status(400).json({ error: 'Missing hash or content' });
 
@@ -154,7 +128,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, hash });
     }
 
-    // DELETE
+    // ── DELETE ────────────────────────────────────────────────────────────
     if (action === 'delete') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
       const { blobs } = await list({ prefix: `scripts/${hash}` });
@@ -162,7 +136,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // GET
+    // ── GET (for admin editor) ────────────────────────────────────────────
     if (action === 'get') {
       if (!hash) return res.status(400).json({ error: 'Missing hash' });
 
@@ -178,7 +152,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, hash, label: meta?.label || 'Unnamed', content });
     }
 
-    // RENAME
+    // ── RENAME (update label only) ────────────────────────────────────────
     if (action === 'rename') {
       if (!hash || !label) return res.status(400).json({ error: 'Missing hash or label' });
       const existing = await getMeta(hash);
@@ -187,7 +161,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // LIST
+    // ── LIST ──────────────────────────────────────────────────────────────
     if (action === 'list') {
       const { blobs }   = await list({ prefix: 'scripts/' });
       const metaBlobs   = blobs.filter(b => b.pathname.endsWith('.meta.json'));
@@ -200,6 +174,32 @@ export default async function handler(req, res) {
       );
 
       return res.status(200).json({ ok: true, scripts: scripts.filter(Boolean) });
+    }
+
+    // ── TRACK HOSTED SCRIPT USE ──────────────────────────────────────────
+    if (action === 'trackhosted') {
+      const { hash, username, gameId, gameName, serverId } = req.body || {};
+      if (!hash) return res.status(400).json({ error: 'Missing hash' });
+      try {
+        const existing = await getMeta(hash);
+        if (!existing) return res.status(404).json({ error: 'Script not found' });
+        existing.useCount = (existing.useCount || 0) + 1;
+        // Only keep the single most recent log entry
+        existing.usageLog = [{
+          ts:       Date.now(),
+          username: username || 'unknown',
+          ip:       ip,
+          gameId:   gameId   || null,
+          gameName: gameName || null,
+          serverId: serverId || null,
+        }];
+        existing.lastUsed = Date.now();
+        await saveMeta(hash, existing);
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        console.error('trackhosted error:', e);
+        return res.status(500).json({ error: 'Track failed' });
+      }
     }
 
     return res.status(400).json({ error: 'Unknown action' });
