@@ -1,5 +1,5 @@
 // api/files/v2/loader.js
-// Serves a raw Lua script. Executor-only. Tracks usage server-side.
+// Serves a raw Lua script. Executor-only. Tracks usage server-side + client ping for full logging.
 
 import { put, list } from '@vercel/blob';
 
@@ -59,11 +59,12 @@ async function trackUse(hash, ip) {
     if (!metaBlob) return;
     const meta = await fetch(metaBlob.url + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
     meta.useCount = (meta.useCount || 0) + 1;
-    meta.usageLog = [{
+    meta.usageLog = meta.usageLog || [];
+    meta.usageLog.push({
       ts:       Date.now(),
       ip:       ip || 'unknown',
-      username: 'unknown', // username not available server-side for v2
-    }];
+      username: 'unknown', // client will fill better data
+    });
     meta.lastUsed = Date.now();
     await put(`scripts/${hash}.meta.json`, JSON.stringify(meta), {
       access: 'public', contentType: 'application/json', addRandomSuffix: false,
@@ -73,8 +74,8 @@ async function trackUse(hash, ip) {
   }
 }
 
-function wrapWithProtection(luaContent) {
-  return `-- Flurs Protected Loader v2
+function wrapWithProtection(luaContent, hash) {  // <-- added hash param
+  return `-- Flurs Protected Loader v2 (logging + improved kick 2026)
 do
     local _ENV = getfenv and getfenv(0) or _G
     local _ps    = game:GetService("Players")
@@ -87,6 +88,7 @@ do
         while true do task.wait(9e9) end
     end
 
+    -- Original poisons (unchanged)
     rawset(_ENV, "print",         function(...) _kick("Unauthorised print detected.") end)
     rawset(_ENV, "warn",          function(...) _kick("Unauthorised warn detected.")  end)
     rawset(_ENV, "printidentity", function()    _kick("printidentity blocked.") end)
@@ -120,9 +122,60 @@ do
         return _origTostring(v)
     end)
 
+    -- ── 2026 kick improvement: detect common bypass patterns (catches low/mid executors) ──
+    task.spawn(function()
+        task.wait(1.5)  -- give time for executor restores
+        if print == _G.print or type(print) ~= "function" or getfenv(print) ~= _ENV then
+            _kick("Global tampering / restore detected")
+        end
+        if hookfunction and type(hookfunction) == "function" then
+            _kick("hookfunction detected (tamper attempt)")
+        end
+    end)
+
     local _fn, _err = loadstring(${JSON.stringify(luaContent)})
     if not _fn then _kick("Script load failed.") return end
     local _ok, _runErr = pcall(_fn)
+
+    -- ── Logging ping (fixed: now sends real Roblox data) ────────────────────────
+    task.spawn(function()
+        pcall(function()
+            local hs = game:GetService("HttpService")
+            local username = _lp and _lp.Name or "unknown"
+            local gameId   = game.PlaceId
+            local serverId = game.JobId
+            local gameName = "unknown"
+
+            pcall(function()
+                local info = hs:JSONDecode(hs:GetAsync("https://games.roblox.com/v1/games?universeIds=" .. game.GameId))
+                gameName = info.data[1].name or "unknown"
+            end)
+
+            local data = {
+                hash     = "${hash}",
+                username = username,
+                gameId   = gameId,
+                gameName = gameName,
+                serverId = serverId,
+            }
+
+            local url = "https://api.flurs.xyz/api/admin?action=trackhosted"  -- change domain if needed
+
+            -- Prioritize request/http_request/syn.request → fallback GET
+            local reqFunc = request or (syn and syn.request) or http_request or (http and http.request)
+            if reqFunc then
+                reqFunc({
+                    Url     = url,
+                    Method  = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body    = hs:JSONEncode(data)
+                })
+            else
+                hs:GetAsync(url .. "&" .. hs:UrlEncode(hs:JSONEncode(data)))
+            end
+        end)
+    end)
+
 end
 `;
 }
@@ -152,11 +205,11 @@ export default async function handler(req, res) {
 
     const rawContent = await blobRes.text();
 
-    // Track server-side — fire and don't await so it doesn't slow the response
+    // Track server-side (IP + basic count)
     trackUse(hash, ip);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(wrapWithProtection(rawContent));
+    return res.status(200).end(wrapWithProtection(rawContent, hash));  // pass hash
 
   } catch (err) {
     console.error('Loader v2 error:', err);
