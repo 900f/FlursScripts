@@ -1,7 +1,5 @@
 // api/files/v2/loader.js
-// Two modes:
-//   1. No ?u= param → serve a Lua bootstrapper that grabs username/hwid then refetches
-//   2. Has ?u= param → log + serve the real script content
+// Serves a Lua bootstrapper that grabs username+hwid then fetches the real script
 
 import { neon } from '@neondatabase/serverless';
 
@@ -39,17 +37,6 @@ function isBrowser(req) {
   return false;
 }
 
-async function writeLog({ hash, label, ip, ua, robloxUsername, hwid }) {
-  try {
-    await sql`
-      INSERT INTO execution_logs (script_hash, script_label, script_type, ip, hwid, roblox_username, user_agent, executed_at)
-      VALUES (${hash}, ${label || 'Unknown'}, 'v2', ${ip}, ${hwid || null}, ${robloxUsername || null}, ${ua}, ${Date.now()})
-    `;
-  } catch (e) {
-    console.error('[v2 loader] log write failed:', e.message);
-  }
-}
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -62,57 +49,36 @@ export default async function handler(req, res) {
   const hash = urlMatch ? urlMatch[1].toLowerCase() : null;
   if (!hash) return res.status(400).end('-- Not found');
 
-  const ip    = getIP(req);
-  const ua    = req.headers['user-agent'] || 'unknown';
-  const host  = req.headers.host || 'api.flurs.xyz';
-  const urlObj = new URL(req.url, `https://${host}`);
+  // Serve a bootstrapper — the executor runs this Lua which grabs
+  // username + hwid, then calls /api/files/v2/exec which logs and returns the real script
+  const execUrl = `https://api.flurs.xyz/api/files/v2/exec/${hash}.lua`;
 
-  const robloxUsername = urlObj.searchParams.get('u')    || null;
-  const hwid           = urlObj.searchParams.get('hwid') || null;
+  const bootstrapper = `-- Flurs Loader
+local hs = game:GetService("HttpService")
 
-  // ── PHASE 1: no user info yet — serve the Lua bootstrapper ────────────
-  if (!robloxUsername) {
-    const scriptUrl = `https://${host}/files/v2/loader/${hash}.lua`;
-    const hs = `game:GetService("HttpService")`;
-    const bootstrapper = `-- Flurs v2 Loader
-local hs   = ${hs}
-local url  = "${scriptUrl}"
-
-local ok1, hwid = pcall(function()
+local hwid = "unknown"
+local ok1, h1 = pcall(function()
     return game:GetService("RbxAnalyticsService"):GetClientId()
 end)
-if not ok1 or not hwid or hwid == "" then
+if ok1 and h1 and h1 ~= "" then
+    hwid = h1
+else
     local ok2, uid = pcall(function()
         return tostring(game:GetService("Players").LocalPlayer.UserId) .. "_device"
     end)
-    hwid = (ok2 and uid) or "unknown"
+    if ok2 and uid then hwid = uid end
 end
 
+local u = "unknown"
 local ok3, uname = pcall(function()
     return game:GetService("Players").LocalPlayer.Name
 end)
-local u = (ok3 and uname) or "unknown"
+if ok3 and uname then u = uname end
 
-local finalUrl = url .. "?u=" .. hs:UrlEncode(u) .. "&hwid=" .. hs:UrlEncode(hwid)
-local src = game:HttpGet(finalUrl, true)
+local url = "${execUrl}?u=" .. hs:UrlEncode(u) .. "&hwid=" .. hs:UrlEncode(hwid)
+local src = game:HttpGet(url, true)
 loadstring(src)()`;
 
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(bootstrapper);
-  }
-
-  // ── PHASE 2: has user info — log it and serve the real script ─────────
-  try {
-    const rows = await sql`SELECT content, label FROM scripts WHERE hash = ${hash}`;
-    if (!rows.length) return res.status(404).end('-- Not found');
-
-    writeLog({ hash, label: rows[0].label, ip, ua, robloxUsername, hwid });
-
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(200).end(rows[0].content);
-
-  } catch (err) {
-    console.error('Loader error:', err);
-    return res.status(500).end('-- Error');
-  }
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  return res.status(200).end(bootstrapper);
 }

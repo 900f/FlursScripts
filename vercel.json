@@ -14,6 +14,10 @@
       "destination": "/api/files/v2/loader"
     },
     {
+      "source": "/api/files/v2/exec/:hash.lua",
+      "destination": "/api/files/v2/exec"
+    },
+    {
       "source": "/api/loader/:hash.lua",
       "destination": "/api/loader"
     },
