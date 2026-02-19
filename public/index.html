@@ -1177,7 +1177,7 @@
         }
 
         function getLoaderSnippet(hash) {
-            return `-- 1. Paste your key below (replace YOUR-KEY)\nscript_key="YOUR-KEY"\n\n-- 2. Run this line to execute the script\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true))()`;
+            return `\nscript_key="YOUR-KEY"\n\nloadstring(game:HttpGet("https://api.flurs.xyz/files/v3/loader/${hash}.lua", true))()`;
         }
 
         function getLoaderFile(hash) {
