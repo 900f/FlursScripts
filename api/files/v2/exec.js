@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     if (!rows.length) return res.status(404).end('-- Not found');
 
     // Log and serve
-    writeLog({ hash, label: rows[0].label, ip, ua, robloxUsername, hwid });
+    await writeLog({ hash, label: rows[0].label, ip, ua, robloxUsername, hwid });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).end(rows[0].content);
